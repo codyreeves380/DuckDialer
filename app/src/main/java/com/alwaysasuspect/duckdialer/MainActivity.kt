@@ -1169,7 +1169,7 @@ class MainActivity : Activity() {
                 display.append("CALLS MADE TODAY")
                 display.setSpan(RelativeSizeSpan(0.82f), labelStart, display.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
                 display.setSpan(ForegroundColorSpan(orange), labelStart, display.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-                display.append("\\n")
+                display.append("\n")
             }
             val numberStart = display.length
             display.append(today.toString())
@@ -1182,7 +1182,7 @@ class MainActivity : Activity() {
                     difference < 0 -> "▼ ${-difference} vs yesterday"
                     else -> "Same as yesterday"
                 }
-                display.append("\\n")
+                display.append("\n")
                 val comparisonStart = display.length
                 display.append(comparison)
                 display.setSpan(RelativeSizeSpan(0.88f), comparisonStart, display.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
