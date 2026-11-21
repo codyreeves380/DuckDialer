@@ -16,6 +16,9 @@ import android.telecom.TelecomManager
 import android.text.Editable
 import android.text.TextWatcher
 import android.view.Gravity
+import android.view.View
+import android.content.ClipData
+import android.view.DragEvent
 import android.view.inputmethod.EditorInfo
 import android.widget.EditText
 import android.widget.LinearLayout
@@ -178,6 +181,7 @@ class MainActivity : Activity() {
 
     private fun buildKeypad() {
         sectionTitle("Enter number")
+        content.getChildAt(content.childCount - 1)?.tag = "entry"
         numberView = TextView(this).apply {
             textSize = 30f
             gravity = Gravity.CENTER
@@ -185,6 +189,7 @@ class MainActivity : Activity() {
             minHeight = dp(58)
             setPadding(dp(4), dp(5), dp(4), dp(5))
         }
+        numberView.tag = "entry"
         content.addView(numberView, matchWrap())
         val digits = listOf(listOf("1", "2", "3"), listOf("4", "5", "6"),
             listOf("7", "8", "9"), listOf("*", "0", "#"))
@@ -221,6 +226,7 @@ class MainActivity : Activity() {
             }
             keypadRows.addView(rowView, matchWrap())
         }
+        keypadRows.tag = "keypad"
         if (prefs.getBoolean("home_show_keypad", true)) content.addView(keypadRows, matchWrap())
         val actions = LinearLayout(this).apply {
             gravity = Gravity.CENTER
@@ -233,6 +239,7 @@ class MainActivity : Activity() {
         actions.addView(actionText("Call", orange, 0xFF17100A.toInt(), 17f) {
             placeOutgoingCall()
         }, LinearLayout.LayoutParams(0, dp(54), 1f).apply { setMargins(dp(8), 0, dp(8), 0) })
+        actions.tag = "call"
         content.addView(actions, matchWrap())
         val hint = TextView(this).apply {
             text = if (prefs.getBoolean("hide_caller_id", false)) "Caller ID hidden for eligible calls" else "Caller ID shown"
@@ -240,10 +247,14 @@ class MainActivity : Activity() {
             setTextColor(muted)
             gravity = Gravity.CENTER
         }
+        hint.tag = "caller_status"
         if (prefs.getBoolean("home_show_caller_hint", true)) content.addView(hint, matchWrap())
-        if (prefs.getBoolean("home_show_caller_shortcut", true)) content.addView(actionText("Caller ID settings  ·  *67", panel, white, 13f) {
-            showTab("Settings")
-        }, LinearLayout.LayoutParams(-1, dp(44)).apply { topMargin = dp(10) })
+        if (prefs.getBoolean("home_show_caller_shortcut", true)) {
+            val shortcut = actionText("Caller ID settings  ·  *67", panel, white, 13f) { showTab("Settings") }
+            shortcut.tag = "caller_shortcut"
+            content.addView(shortcut, LinearLayout.LayoutParams(-1, dp(44)).apply { topMargin = dp(10) })
+        }
+        applyHomeSectionOrder()
     }
 
     private fun buildRecents() {
@@ -409,6 +420,21 @@ class MainActivity : Activity() {
         addHomeSwitch(widgets, "home_show_keypad", "Show keypad", true)
         content.addView(widgets, matchWrap())
 
+        sectionTitle("Home section order")
+        content.addView(smallText("Drag a section by its handle, or use the arrows. The preview updates to match."), matchWrap())
+        addHomeSectionOrderEditor()
+        sectionTitle("Live layout preview")
+        val preview = settingsCard()
+        preview.addView(smallText("YOUR HOME SCREEN"), matchWrap())
+        preview.addView(TextView(this).apply {
+            text = homeSectionOrder().joinToString("   →   ") { homeSectionLabel(it) }
+            textSize = 12f
+            setTextColor(white)
+            setPadding(0, dp(10), 0, dp(8))
+        }, matchWrap())
+        preview.addView(smallText("Key size: ${prefs.getInt(\"home_key_height\", 65)}dp  ·  Duck: ${prefs.getInt(\"home_duck_size\", 25)}dp"), matchWrap())
+        content.addView(preview, matchWrap())
+
         sectionTitle("Navigation tabs")
         content.addView(smallText("Use arrows to reorder tabs. Hide tabs you don't use."), matchWrap())
         val tabsCard = settingsCard()
@@ -482,6 +508,90 @@ class MainActivity : Activity() {
         content.addView(actionText("←  Back to Settings", panel, white, 14f) {
             showTab("Settings")
         }, LinearLayout.LayoutParams(-1, dp(48)).apply { topMargin = dp(18) })
+    }
+
+    private val homeSections = listOf("entry", "keypad", "call", "caller_status", "caller_shortcut")
+
+    private fun homeSectionLabel(key: String): String = when (key) {
+        "entry" -> "Number entry"
+        "keypad" -> "Keypad"
+        "call" -> "Call controls"
+        "caller_status" -> "Caller ID status"
+        else -> "Caller ID shortcut"
+    }
+
+    private fun homeSectionOrder(): List<String> {
+        val saved = (prefs.getString("home_section_order", homeSections.joinToString("|")) ?: homeSections.joinToString("|"))
+            .split("|").filter { it in homeSections }.distinct()
+        return saved + homeSections.filterNot { it in saved }
+    }
+
+    private fun applyHomeSectionOrder() {
+        if (content.childCount < 2) return
+        val children = (0 until content.childCount).map { content.getChildAt(it) }
+        val order = homeSectionOrder()
+        val ordered = children.withIndex().sortedWith(compareBy<IndexedValue<View>> {
+            val key = it.value.tag as? String
+            if (key == null) -1 else order.indexOf(key).let { index -> if (index < 0) 99 else index }
+        }.thenBy { it.index }).map { it.value }
+        content.removeAllViews()
+        ordered.forEach { view -> content.addView(view) }
+    }
+
+    private fun moveHomeSection(from: String, to: String) {
+        val order = homeSectionOrder().toMutableList()
+        val old = order.indexOf(from)
+        val target = order.indexOf(to)
+        if (old < 0 || target < 0 || old == target) return
+        val moved = order.removeAt(old)
+        order.add(target, moved)
+        prefs.edit().putString("home_section_order", order.joinToString("|")).apply()
+        showTab("Home Customization")
+    }
+
+    private fun addHomeSectionOrderEditor() {
+        val card = settingsCard()
+        homeSectionOrder().forEachIndexed { index, section ->
+            val row = LinearLayout(this).apply {
+                gravity = Gravity.CENTER_VERTICAL
+                tag = section
+                setPadding(dp(6), dp(3), dp(6), dp(3))
+                background = rounded(0xFF222222.toInt(), 10)
+                setOnLongClickListener {
+                    startDragAndDrop(ClipData.newPlainText("home-section", section), View.DragShadowBuilder(this), section, View.DRAG_FLAG_GLOBAL)
+                }
+                setOnDragListener { target, event ->
+                    when (event.action) {
+                        DragEvent.ACTION_DRAG_STARTED -> true
+                        DragEvent.ACTION_DRAG_ENTERED -> { target.alpha = 0.65f; true }
+                        DragEvent.ACTION_DRAG_EXITED -> { target.alpha = 1f; true }
+                        DragEvent.ACTION_DROP -> {
+                            target.alpha = 1f
+                            val from = event.localState as? String
+                            val to = target.tag as? String
+                            if (from != null && to != null) moveHomeSection(from, to)
+                            true
+                        }
+                        DragEvent.ACTION_DRAG_ENDED -> { target.alpha = 1f; true }
+                        else -> true
+                    }
+                }
+            }
+            row.addView(TextView(this).apply {
+                text = "☷  ${homeSectionLabel(section)}"
+                textSize = 13f
+                setTextColor(white)
+            }, LinearLayout.LayoutParams(0, dp(42), 1f))
+            row.addView(actionText("↑", panel, white, 15f) {
+                if (index > 0) moveHomeSection(section, homeSectionOrder()[index - 1])
+            }, LinearLayout.LayoutParams(dp(38), dp(36)))
+            row.addView(actionText("↓", panel, white, 15f) {
+                val order = homeSectionOrder()
+                if (index < order.lastIndex) moveHomeSection(section, order[index + 1])
+            }, LinearLayout.LayoutParams(dp(38), dp(36)))
+            card.addView(row, LinearLayout.LayoutParams(-1, dp(46)).apply { topMargin = dp(4) })
+        }
+        content.addView(card, matchWrap())
     }
 
     private fun addHomeSwitch(parent: LinearLayout, key: String, label: String, default: Boolean) {
