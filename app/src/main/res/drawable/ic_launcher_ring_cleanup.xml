@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="256dp"
+    android:height="256dp"
+    android:viewportWidth="256"
+    android:viewportHeight="256">
+    <!-- Mask only the exposed crosshair/ring segments in the black negative space. -->
+    <path
+        android:pathData="M104,51 C111,47 119,45 127,45 M128,45 C137,45 145,47 152,51
+            M62,101 C65,91 69,82 76,74 M61,108 L84,108
+            M180,74 C187,82 191,91 194,101 M173,108 L195,108"
+        android:strokeColor="#FF000000"
+        android:strokeWidth="6"
+        android:strokeLineCap="round"
+        android:fillColor="@android:color/transparent" />
+</vector>
