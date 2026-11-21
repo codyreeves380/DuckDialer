@@ -722,7 +722,7 @@ class MainActivity : Activity() {
     private fun buildSettings() {
         sectionTitle("Settings")
         content.addView(smallText("Choose a category"), matchWrap())
-        val categories = listOf("General", "Caller ID", "Appearance", "Home Screen", "About")
+        val categories = listOf("General", "Caller ID", "Appearance", "In-Call", "Home Screen", "About")
         val scroller = HorizontalScrollView(this).apply {
             isHorizontalScrollBarEnabled = false
             setPadding(0, dp(8), 0, dp(14))
@@ -785,6 +785,58 @@ class MainActivity : Activity() {
                     }
                     content.addView(row, matchWrap())
                 }
+            }
+            "In-Call" -> {
+                sectionTitle("In-Call Screen")
+                content.addView(smallText("Personalize the screen shown during incoming and active calls. Changes apply to the next call."), matchWrap())
+                val display = settingsCard()
+                fun callSwitch(key: String, label: String, default: Boolean) {
+                    display.addView(Switch(this).apply {
+                        text = label
+                        textSize = 14f
+                        setTextColor(white)
+                        isChecked = prefs.getBoolean(key, default)
+                        buttonTintList = ColorStateList.valueOf(orange)
+                        setOnCheckedChangeListener { _, checked -> prefs.edit().putBoolean(key, checked).apply() }
+                    }, LinearLayout.LayoutParams(-1, dp(46)))
+                }
+                callSwitch("incall_show_brand", "Show DuckDialer branding", true)
+                callSwitch("incall_show_avatar", "Show caller photo / duck avatar", true)
+                callSwitch("incall_show_timer", "Show call duration timer", true)
+                callSwitch("incall_show_control_labels", "Show labels under control icons", true)
+                content.addView(display, matchWrap())
+                sectionTitle("Avatar size")
+                val avatar = settingsCard()
+                addChoiceRow(avatar, listOf("Small" to 80, "Medium" to 108, "Large" to 144), "incall_avatar_size", 108)
+                content.addView(avatar, matchWrap())
+                sectionTitle("Call control size")
+                val controls = settingsCard()
+                addChoiceRow(controls, listOf("Compact" to 68, "Comfortable" to 78, "Large" to 100), "incall_control_size", 78)
+                content.addView(controls, matchWrap())
+                sectionTitle("In-call accent")
+                val callColors = listOf("Orange" to 0xFFFF8A00.toInt(), "Blue" to 0xFF3998FF.toInt(),
+                    "Purple" to 0xFFB078FF.toInt(), "Green" to 0xFF39C98A.toInt())
+                callColors.chunked(2).forEach { pair ->
+                    val row = LinearLayout(this).apply { gravity = Gravity.CENTER }
+                    pair.forEach { (name, color) ->
+                        row.addView(actionText(
+                            if (prefs.getInt("incall_accent_color", prefs.getInt("accent_color", 0xFFFF8A00.toInt())) == color) "✓  $name" else name,
+                            color, 0xFF101010.toInt(), 13f
+                        ) {
+                            prefs.edit().putInt("incall_accent_color", color).apply()
+                            selectedSettingsSection = "In-Call"
+                            showTab("Settings")
+                        }, LinearLayout.LayoutParams(0, dp(46), 1f).apply {
+                            setMargins(dp(4), dp(4), dp(4), dp(4))
+                        })
+                    }
+                    content.addView(row, matchWrap())
+                }
+                content.addView(actionText("Use app accent color", panel, white, 13f) {
+                    prefs.edit().remove("incall_accent_color").apply()
+                    selectedSettingsSection = "In-Call"
+                    showTab("Settings")
+                }, LinearLayout.LayoutParams(-1, dp(44)).apply { topMargin = dp(8) })
             }
             "Home Screen" -> {
                 sectionTitle("Home Screen")
