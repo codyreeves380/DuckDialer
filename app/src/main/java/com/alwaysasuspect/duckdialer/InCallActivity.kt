@@ -206,7 +206,7 @@ class InCallActivity : Activity() {
         }
         firstRow.addView(muteButton, controlParams())
         firstRow.addView(keypadButton, controlParams())
-        controlsPanel.addView(firstRow, LinearLayout.LayoutParams(-1, dp(92)))
+        controlsPanel.addView(firstRow, LinearLayout.LayoutParams(-1, dp(prefs.getInt("incall_control_size", 78).coerceIn(68, 100) + 14)))
 
         val secondRow = LinearLayout(this).apply { gravity = Gravity.CENTER }
         speakerButton = control("◉", "Speaker") {
@@ -223,7 +223,7 @@ class InCallActivity : Activity() {
         }
         secondRow.addView(speakerButton, controlParams())
         secondRow.addView(holdButton, controlParams())
-        controlsPanel.addView(secondRow, LinearLayout.LayoutParams(-1, dp(92)))
+        controlsPanel.addView(secondRow, LinearLayout.LayoutParams(-1, dp(prefs.getInt("incall_control_size", 78).coerceIn(68, 100) + 14)))
         root.addView(controlsPanel, LinearLayout.LayoutParams(-1, -2).apply {
             topMargin = dp(14)
         })
