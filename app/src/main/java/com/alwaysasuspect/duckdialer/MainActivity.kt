@@ -96,9 +96,6 @@ class MainActivity : Activity() {
                         insets.systemWindowInsetBottom)
                 }
                 view.setPadding(bars.left, bars.top, bars.right, 0)
-                val bottomNav = view.getChildAt(view.childCount - 1)
-                bottomNav?.setPadding(bottomNav.paddingLeft, bottomNav.paddingTop,
-                    bottomNav.paddingRight, dp(10) + bars.bottom)
                 insets
             }
         }
@@ -174,6 +171,16 @@ class MainActivity : Activity() {
                 })
                 setOnClickListener { showTab(tab) }
             }, LinearLayout.LayoutParams(0, dp(54), 1f))
+        }
+        nav.setOnApplyWindowInsetsListener { view, insets ->
+            val bottomInset = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                insets.getInsets(WindowInsets.Type.navigationBars()).bottom
+            } else {
+                @Suppress("DEPRECATION")
+                insets.systemWindowInsetBottom
+            }
+            view.setPadding(dp(6), dp(7), dp(6), dp(10) + bottomInset)
+            insets
         }
         root.addView(nav, matchWrap())
         setContentView(root)
