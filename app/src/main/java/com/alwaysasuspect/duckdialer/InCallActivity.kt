@@ -45,6 +45,8 @@ class InCallActivity : Activity() {
     private var muted = false
     private var speakerOn = false
     private var keypadVisible = false
+    private var holdWhenConnected = false
+    private var holdRequestApplied = false
     private val prefs by lazy { getSharedPreferences("duckdialer_settings", MODE_PRIVATE) }
     private val orange: Int get() = prefs.getInt("incall_accent_color", prefs.getInt("accent_color", 0xFFFF8A00.toInt()))
     private val white = 0xFFF5F5F5.toInt()
@@ -256,7 +258,22 @@ class InCallActivity : Activity() {
         }
         holdButton = control("Ⅱ", "Hold") {
             val call = DuckDialerInCallService.activeCall
-            if (call?.state == Call.STATE_HOLDING) call.unhold() else call?.hold()
+            when (call?.state) {
+                Call.STATE_DIALING, Call.STATE_CONNECTING -> {
+                    holdWhenConnected = !holdWhenConnected
+                    holdRequestApplied = false
+                }
+                Call.STATE_HOLDING -> {
+                    holdWhenConnected = false
+                    holdRequestApplied = false
+                    try { call.unhold() } catch (_: Exception) { }
+                }
+                Call.STATE_ACTIVE -> {
+                    holdWhenConnected = false
+                    holdRequestApplied = false
+                    try { call.hold() } catch (_: Exception) { }
+                }
+            }
             refresh()
         }
         secondRow.addView(speakerButton, controlParams())
@@ -376,15 +393,35 @@ class InCallActivity : Activity() {
             else -> "CALL"
         }
         val ringing = state == Call.STATE_RINGING
+        val dialing = state == Call.STATE_DIALING || state == Call.STATE_CONNECTING
         val inCall = state == Call.STATE_ACTIVE || state == Call.STATE_HOLDING
+        val controlsAvailable = dialing || inCall
         answerRow.visibility = if (ringing) View.VISIBLE else View.GONE
-        controlsPanel.visibility = if (inCall) View.VISIBLE else View.GONE
+        controlsPanel.visibility = if (controlsAvailable) View.VISIBLE else View.GONE
         keypadPanel.visibility = if (inCall && keypadVisible) View.VISIBLE else View.GONE
         muteButton.text = if (muted) "◖\nMuted" else "◖\nMute"
         speakerButton.text = if (speakerOn) "◉\nSpeaker on" else "◉\nSpeaker"
-        holdButton.text = if (state == Call.STATE_HOLDING) "▶\nResume" else "Ⅱ\nHold"
+        holdButton.text = when {
+            state == Call.STATE_HOLDING -> "▶\nResume"
+            holdWhenConnected && dialing -> "Ⅱ\nHold on connect"
+            dialing -> "Ⅱ\nHold on connect"
+            else -> "Ⅱ\nHold"
+        }
         keypadButton.text = if (keypadVisible) "▦\nHide keypad" else "▦\nKeypad"
         durationView.visibility = if (inCall) View.VISIBLE else View.GONE
+        if (state == Call.STATE_ACTIVE && holdWhenConnected && !holdRequestApplied) {
+            holdRequestApplied = true
+            holdWhenConnected = false
+            try {
+                call?.hold()
+            } catch (_: Exception) {
+                holdRequestApplied = false
+            }
+        }
+        if (state == Call.STATE_DISCONNECTED || call == null) {
+            holdWhenConnected = false
+            holdRequestApplied = false
+        }
         updateDuration()
     }
 
