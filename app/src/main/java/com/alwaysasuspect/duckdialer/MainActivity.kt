@@ -125,7 +125,7 @@ class MainActivity : Activity() {
                 setTextColor(white)
             })
         }, LinearLayout.LayoutParams(0, -2, 1f))
-        titleRow.addView(actionText("🦆", panel, white, 24f) { showTab("Settings") },
+        titleRow.addView(actionText("🦆", panel, white, prefs.getInt("home_duck_size", 25).toFloat()) { showTab("Settings") },
             LinearLayout.LayoutParams(dp(48), dp(46)))
         header.addView(titleRow, matchWrap())
         countView = TextView(this).apply {
@@ -461,7 +461,6 @@ class MainActivity : Activity() {
         display.addView(smallText("HOME DISPLAY"), matchWrap())
         addHomeSwitch(display, "home_show_count", "Show today's call count", true)
         addHomeSwitch(display, "home_brand_label", "Show DuckDialer label", true)
-        addHomeSwitch(display, "home_show_duck", "Show duck logo in header", true)
         addHomeSwitch(display, "home_keypad_letters", "Show keypad letter hints", true)
         content.addView(display, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(12) })
 
@@ -672,6 +671,7 @@ class MainActivity : Activity() {
                 if (selected) orange else 0xFF292929.toInt(),
                 if (selected) 0xFF17100A.toInt() else white, 10f) {
                 prefs.edit().putString("counter_style", style).apply()
+                if (::countView.isInitialized) countView.background = counterBackground()
                 showTab("Home Customization")
             }, LinearLayout.LayoutParams(0, dp(42), 1f).apply {
                 setMargins(dp(2), dp(7), dp(2), dp(7))
@@ -716,7 +716,13 @@ class MainActivity : Activity() {
             setTextColor(white)
             isChecked = prefs.getBoolean(key, default)
             buttonTintList = ColorStateList.valueOf(orange)
-            setOnCheckedChangeListener { _, checked -> prefs.edit().putBoolean(key, checked).apply() }
+            setOnCheckedChangeListener { _, checked ->
+                prefs.edit().putBoolean(key, checked).apply()
+                if (key == "home_show_count" && ::countView.isInitialized) {
+                    countView.visibility = if (checked) View.VISIBLE else View.GONE
+                }
+                if (key.startsWith("counter_") && ::countView.isInitialized) refreshTodayCount()
+            }
         }, LinearLayout.LayoutParams(-1, dp(48)))
     }
 
