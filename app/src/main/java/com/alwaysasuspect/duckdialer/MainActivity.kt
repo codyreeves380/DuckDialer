@@ -34,7 +34,7 @@ import java.util.Date
 import java.util.Locale
 
 class MainActivity : Activity() {
-    private lateinit var numberView: TextView
+    private lateinit var numberView: EditText
     private lateinit var countView: TextView
     private lateinit var content: LinearLayout
     private val prefs by lazy { getSharedPreferences("duckdialer_settings", MODE_PRIVATE) }
@@ -226,12 +226,20 @@ class MainActivity : Activity() {
     private fun buildKeypad() {
         sectionTitle("Enter number")
         content.getChildAt(content.childCount - 1)?.tag = "entry"
-        numberView = TextView(this).apply {
+        numberView = EditText(this).apply {
             textSize = 30f
             gravity = Gravity.CENTER
             setTextColor(white)
+            setHintTextColor(muted)
+            hint = "Enter or paste number"
+            isSingleLine = true
+            inputType = android.text.InputType.TYPE_CLASS_PHONE
+            imeOptions = EditorInfo.IME_ACTION_CALL
             minHeight = dp(58)
-            setPadding(dp(4), dp(5), dp(4), dp(5))
+            setPadding(dp(12), dp(5), dp(12), dp(5))
+            background = rounded(panel, 16)
+            selectAllOnFocus = false
+            importantForAutofill = View.IMPORTANT_FOR_AUTOFILL_NO
         }
         numberView.tag = "entry"
         content.addView(numberView, matchWrap())
