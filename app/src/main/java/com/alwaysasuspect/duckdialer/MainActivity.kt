@@ -17,6 +17,7 @@ import android.text.Editable
 import android.text.TextWatcher
 import android.view.Gravity
 import android.view.View
+import android.view.WindowInsets
 import android.content.ClipData
 import android.view.DragEvent
 import android.view.inputmethod.EditorInfo
@@ -49,11 +50,30 @@ class MainActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        configureEdgeToEdge()
         buildScreen()
         requestDialerRoleIfNeeded()
         requestRuntimePermissions()
         refreshTodayCount()
         showTab(selectedTab)
+    }
+
+    private fun configureEdgeToEdge() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            window.setDecorFitsSystemWindows(false)
+        } else {
+            @Suppress("DEPRECATION")
+            window.decorView.systemUiVisibility =
+                (View.SYSTEM_UI_FLAG_LAYOUT_STABLE or
+                    View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or
+                    View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION)
+        }
+        window.statusBarColor = 0xFF080808.toInt()
+        window.navigationBarColor = 0xFF080808.toInt()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            window.isNavigationBarContrastEnforced = false
+            window.isStatusBarContrastEnforced = false
+        }
     }
 
     override fun onResume() {
@@ -66,6 +86,21 @@ class MainActivity : Activity() {
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(0xFF080808.toInt())
+            setOnApplyWindowInsetsListener { view, insets ->
+                val bars = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    insets.getInsets(WindowInsets.Type.systemBars())
+                } else {
+                    @Suppress("DEPRECATION")
+                    android.graphics.Insets.of(insets.systemWindowInsetLeft,
+                        insets.systemWindowInsetTop, insets.systemWindowInsetRight,
+                        insets.systemWindowInsetBottom)
+                }
+                view.setPadding(bars.left, bars.top, bars.right, 0)
+                val bottomNav = view.getChildAt(view.childCount - 1)
+                bottomNav?.setPadding(bottomNav.paddingLeft, bottomNav.paddingTop,
+                    bottomNav.paddingRight, dp(10) + bars.bottom)
+                insets
+            }
         }
         val header = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
