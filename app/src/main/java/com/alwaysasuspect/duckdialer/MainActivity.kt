@@ -238,6 +238,7 @@ class MainActivity : Activity() {
             hint = "Enter or paste number"
             isSingleLine = true
             inputType = android.text.InputType.TYPE_CLASS_PHONE
+            showSoftInputOnFocus = false
             imeOptions = EditorInfo.IME_ACTION_GO
             minHeight = dp(58)
             setPadding(dp(12), dp(5), dp(12), dp(5))
