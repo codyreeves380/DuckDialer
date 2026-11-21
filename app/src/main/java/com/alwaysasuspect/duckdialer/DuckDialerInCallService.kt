@@ -28,7 +28,7 @@ class DuckDialerInCallService : InCallService() {
     override fun onCallAdded(call: Call) {
         super.onCallAdded(call)
         serviceInstance = this
-        calls.addIfAbsent(call)
+        if (!calls.contains(call)) calls.add(call)
         call.registerCallback(callCallback)
         selectBestCall()
         updateIncomingCallNotification()
