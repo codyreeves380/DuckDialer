@@ -3,39 +3,49 @@ package com.alwaysasuspect.duckdialer
 import android.app.Activity
 import android.os.Bundle
 import android.telecom.Call
+import android.telecom.CallAudioState
 import android.telecom.VideoProfile
 import android.view.Gravity
+import android.view.View
+import android.view.WindowManager
 import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.TextView
+import java.lang.ref.WeakReference
 
 class InCallActivity : Activity() {
     private lateinit var stateView: TextView
     private lateinit var numberView: TextView
+    private lateinit var answerButton: Button
+    private lateinit var muteButton: Button
+    private lateinit var speakerButton: Button
+    private var muted = false
+    private var speakerOn = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         buildUi()
+        visibleActivity = WeakReference(this)
         refresh()
     }
 
     override fun onResume() {
         super.onResume()
+        visibleActivity = WeakReference(this)
         refresh()
-        visible = true
     }
 
-    override fun onPause() {
-        visible = false
-        super.onPause()
+    override fun onDestroy() {
+        if (visibleActivity?.get() === this) visibleActivity = null
+        super.onDestroy()
     }
 
     private fun buildUi() {
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
-            setPadding(28, 40, 28, 40)
+            setPadding(dp(28), dp(40), dp(28), dp(40))
             setBackgroundColor(0xFF080808.toInt())
         }
         val brand = TextView(this).apply {
@@ -46,50 +56,61 @@ class InCallActivity : Activity() {
         numberView = TextView(this).apply {
             textSize = 28f
             setTextColor(0xFFFFFFFF.toInt())
-            setPadding(0, 32, 0, 12)
+            gravity = Gravity.CENTER
+            setPadding(0, dp(32), 0, dp(12))
         }
         stateView = TextView(this).apply {
             textSize = 16f
             setTextColor(0xFFBBBBBB.toInt())
+            gravity = Gravity.CENTER
         }
         root.addView(brand)
         root.addView(numberView)
         root.addView(stateView)
 
-        val answer = Button(this).apply {
-            text = "ANSWER"
-            setOnClickListener { DuckDialerInCallService.activeCall?.answer(VideoProfile.STATE_AUDIO_ONLY); refresh() }
+        answerButton = makeButton("ANSWER") {
+            DuckDialerInCallService.activeCall?.answer(VideoProfile.STATE_AUDIO_ONLY)
+            refresh()
         }
-        val mute = Button(this).apply {
-            text = "MUTE"
-            setOnClickListener {
-                val service = DuckDialerInCallService.serviceInstance
-                service?.setMuted(true)
-            }
+        muteButton = makeButton("MUTE") {
+            muted = !muted
+            DuckDialerInCallService.serviceInstance?.setMuted(muted)
+            refresh()
         }
-        val speaker = Button(this).apply {
-            text = "SPEAKER"
-            setOnClickListener {
-                val service = DuckDialerInCallService.serviceInstance
-                service?.setAudioRoute(android.telecom.CallAudioState.ROUTE_SPEAKER)
-            }
+        speakerButton = makeButton("SPEAKER") {
+            speakerOn = !speakerOn
+            DuckDialerInCallService.serviceInstance?.setAudioRoute(
+                if (speakerOn) CallAudioState.ROUTE_SPEAKER else CallAudioState.ROUTE_EARPIECE
+            )
+            refresh()
         }
-        val hangup = Button(this).apply {
-            text = "END CALL"
+        val hangup = makeButton("END CALL") {
+            DuckDialerInCallService.activeCall?.disconnect()
+            finish()
+        }.apply {
             setTextColor(0xFFFFFFFF.toInt())
             setBackgroundTintList(android.content.res.ColorStateList.valueOf(0xFFCF3030.toInt()))
-            setOnClickListener { DuckDialerInCallService.activeCall?.disconnect(); finish() }
         }
-        listOf(answer, mute, speaker, hangup).forEach {
-            root.addView(it, LinearLayout.LayoutParams(-1, 58).apply { topMargin = 12 })
+
+        listOf(answerButton, muteButton, speakerButton, hangup).forEach {
+            root.addView(it, LinearLayout.LayoutParams(-1, dp(58)).apply {
+                topMargin = dp(12)
+            })
         }
         setContentView(root)
     }
 
+    private fun makeButton(label: String, action: () -> Unit) =
+        Button(this).apply {
+            text = label
+            setOnClickListener { action() }
+        }
+
     private fun refresh() {
         val call = DuckDialerInCallService.activeCall
         numberView.text = call?.details?.handle?.schemeSpecificPart ?: "Unknown caller"
-        stateView.text = when (call?.state) {
+        val state = call?.state
+        stateView.text = when (state) {
             Call.STATE_RINGING -> "Incoming call"
             Call.STATE_DIALING -> "Calling…"
             Call.STATE_CONNECTING -> "Connecting…"
@@ -98,12 +119,24 @@ class InCallActivity : Activity() {
             Call.STATE_DISCONNECTED -> "Call ended"
             else -> "Call"
         }
+        answerButton.visibility = if (state == Call.STATE_RINGING) View.VISIBLE else View.GONE
+        muteButton.visibility = if (state == Call.STATE_ACTIVE) View.VISIBLE else View.GONE
+        speakerButton.visibility = if (state == Call.STATE_ACTIVE) View.VISIBLE else View.GONE
+        muteButton.text = if (muted) "UNMUTE" else "MUTE"
+        speakerButton.text = if (speakerOn) "EARPIECE" else "SPEAKER"
     }
 
+    private fun dp(value: Int) = (value * resources.displayMetrics.density).toInt()
+
     companion object {
-        @Volatile private var visible = false
+        @Volatile private var visibleActivity: WeakReference<InCallActivity>? = null
+
         fun refreshIfVisible() {
-            // The screen refreshes on resume; later milestones will add lifecycle-safe state observation.
+            visibleActivity?.get()?.runOnUiThread { visibleActivity?.get()?.refresh() }
+        }
+
+        fun finishIfVisible() {
+            visibleActivity?.get()?.runOnUiThread { visibleActivity?.get()?.finish() }
         }
     }
 }
