@@ -114,7 +114,9 @@ class MainActivity : Activity() {
             setPadding(dp(6), dp(7), dp(6), dp(10))
             setBackgroundColor(0xFF101010.toInt())
         }
-        listOf("Favorites" to "★", "Recents" to "◷", "Contacts" to "☷", "Keypad" to "▦").forEach { (tab, glyph) ->
+        val glyphs = mapOf("Favorites" to "★", "Recents" to "◷", "Contacts" to "☷", "Keypad" to "▦")
+        visibleTabs().forEach { tab ->
+            val glyph = glyphs[tab] ?: "•"
             nav.addView(LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
                 gravity = Gravity.CENTER
@@ -136,6 +138,15 @@ class MainActivity : Activity() {
         root.addView(nav, matchWrap())
         setContentView(root)
         updateNavigation()
+    }
+
+    private fun visibleTabs(): List<String> {
+        val defaults = listOf("Favorites", "Recents", "Contacts", "Keypad")
+        val order = (prefs.getString("tab_order", defaults.joinToString("|")) ?: defaults.joinToString("|"))
+            .split("|").filter { it in defaults }.distinct()
+        return (order + defaults.filterNot { it in order }).filter {
+            prefs.getBoolean("tab_visible_$it", true)
+        }.ifEmpty { listOf("Keypad") }
     }
 
     private fun updateNavigation() {
@@ -179,6 +190,7 @@ class MainActivity : Activity() {
             listOf("7", "8", "9"), listOf("*", "0", "#"))
         val letters = mapOf("2" to "ABC", "3" to "DEF", "4" to "GHI", "5" to "JKL",
             "6" to "MNO", "7" to "PQRS", "8" to "TUV", "9" to "WXYZ", "0" to "+")
+        val keypadRows = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         digits.forEach { row ->
             val rowView = LinearLayout(this).apply { gravity = Gravity.CENTER }
             row.forEach { digit ->
@@ -207,8 +219,9 @@ class MainActivity : Activity() {
                     setMargins(dp(5), dp(4), dp(5), dp(4))
                 })
             }
-            content.addView(rowView, matchWrap())
+            keypadRows.addView(rowView, matchWrap())
         }
+        if (prefs.getBoolean("home_show_keypad", true)) content.addView(keypadRows, matchWrap())
         val actions = LinearLayout(this).apply {
             gravity = Gravity.CENTER
             setPadding(0, dp(7), 0, dp(12))
@@ -227,8 +240,8 @@ class MainActivity : Activity() {
             setTextColor(muted)
             gravity = Gravity.CENTER
         }
-        content.addView(hint, matchWrap())
-        content.addView(actionText("Caller ID settings  ·  *67", panel, white, 13f) {
+        if (prefs.getBoolean("home_show_caller_hint", true)) content.addView(hint, matchWrap())
+        if (prefs.getBoolean("home_show_caller_shortcut", true)) content.addView(actionText("Caller ID settings  ·  *67", panel, white, 13f) {
             showTab("Settings")
         }, LinearLayout.LayoutParams(-1, dp(44)).apply { topMargin = dp(10) })
     }
@@ -389,6 +402,49 @@ class MainActivity : Activity() {
         addChoiceRow(sizes, listOf("Compact" to 58, "Comfortable" to 65, "Large" to 74), "home_key_height", 65)
         content.addView(sizes, matchWrap())
 
+        sectionTitle("Home widgets")
+        val widgets = settingsCard()
+        addHomeSwitch(widgets, "home_show_caller_hint", "Show caller ID status", true)
+        addHomeSwitch(widgets, "home_show_caller_shortcut", "Show caller ID settings shortcut", true)
+        addHomeSwitch(widgets, "home_show_keypad", "Show keypad", true)
+        content.addView(widgets, matchWrap())
+
+        sectionTitle("Navigation tabs")
+        content.addView(smallText("Use arrows to reorder tabs. Hide tabs you don't use."), matchWrap())
+        val tabsCard = settingsCard()
+        listOf("Favorites", "Recents", "Contacts", "Keypad").forEach { tab ->
+            val row = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
+            row.addView(TextView(this).apply {
+                text = tab
+                textSize = 14f
+                setTextColor(if (prefs.getBoolean("tab_visible_$tab", true)) white else muted)
+            }, LinearLayout.LayoutParams(0, dp(44), 1f))
+            row.addView(Switch(this).apply {
+                isChecked = prefs.getBoolean("tab_visible_$tab", true)
+                buttonTintList = ColorStateList.valueOf(orange)
+                setOnCheckedChangeListener { _, checked ->
+                    prefs.edit().putBoolean("tab_visible_$tab", checked).apply()
+                    buildScreen()
+                    showTab(if (selectedTab in visibleTabs()) selectedTab else "Keypad")
+                }
+            })
+            row.addView(actionText("↑", panel, white, 17f) { moveTab(tab, -1) },
+                LinearLayout.LayoutParams(dp(40), dp(38)))
+            row.addView(actionText("↓", panel, white, 17f) { moveTab(tab, 1) },
+                LinearLayout.LayoutParams(dp(40), dp(38)))
+            tabsCard.addView(row, matchWrap())
+        }
+        content.addView(tabsCard, matchWrap())
+
+        sectionTitle("Saved home layouts")
+        val layouts = settingsCard()
+        listOf("Classic", "Minimal", "Power User").forEach { preset ->
+            layouts.addView(actionText("Apply $preset", panel, white, 13f) {
+                applyLayoutPreset(preset)
+            }, LinearLayout.LayoutParams(-1, dp(42)).apply { topMargin = dp(5) })
+        }
+        content.addView(layouts, matchWrap())
+
         sectionTitle("Duck branding")
         val duck = settingsCard()
         addChoiceRow(duck, listOf("Small" to 20, "Medium" to 25, "Large" to 31), "home_duck_size", 25)
@@ -441,6 +497,53 @@ class MainActivity : Activity() {
             })
         }
         parent.addView(row, matchWrap())
+    }
+
+
+    private fun moveTab(tab: String, delta: Int) {
+        val tabs = listOf("Favorites", "Recents", "Contacts", "Keypad")
+        val order = (prefs.getString("tab_order", tabs.joinToString("|")) ?: tabs.joinToString("|"))
+            .split("|").filter { it in tabs }.distinct().toMutableList()
+        tabs.filterNot { it in order }.forEach { order.add(it) }
+        val from = order.indexOf(tab)
+        val to = (from + delta).coerceIn(0, order.lastIndex)
+        if (from != to) {
+            val item = order.removeAt(from)
+            order.add(to, item)
+            prefs.edit().putString("tab_order", order.joinToString("|")).apply()
+            showTab("Home Customization")
+        }
+    }
+
+    private fun applyLayoutPreset(name: String) {
+        val editor = prefs.edit()
+        when (name) {
+            "Classic" -> {
+                listOf("Favorites", "Recents", "Contacts", "Keypad").forEach { editor.putBoolean("tab_visible_$it", true) }
+                editor.putBoolean("home_show_count", true).putBoolean("home_show_duck", true)
+                    .putBoolean("home_show_keypad", true).putBoolean("home_show_caller_hint", true)
+                    .putBoolean("home_show_caller_shortcut", true).putInt("home_key_height", 65)
+            }
+            "Minimal" -> {
+                listOf("Favorites", "Recents", "Contacts", "Keypad").forEach { editor.putBoolean("tab_visible_$it", it == "Keypad" || it == "Recents") }
+                editor.putBoolean("home_show_count", false).putBoolean("home_show_duck", false)
+                    .putBoolean("home_show_keypad", true).putBoolean("home_show_caller_hint", false)
+                    .putBoolean("home_show_caller_shortcut", false).putInt("home_key_height", 58)
+            }
+            "Power User" -> {
+                listOf("Favorites", "Recents", "Contacts", "Keypad").forEach { editor.putBoolean("tab_visible_$it", true) }
+                editor.putBoolean("home_show_count", true).putBoolean("home_show_duck", true)
+                    .putBoolean("home_show_keypad", true).putBoolean("home_show_caller_hint", true)
+                    .putBoolean("home_show_caller_shortcut", true).putInt("home_key_height", 74)
+            }
+        }
+        editor.putString("tab_order", when (name) {
+            "Minimal" -> "Keypad|Recents|Favorites|Contacts"
+            "Power User" -> "Keypad|Favorites|Recents|Contacts"
+            else -> "Favorites|Recents|Contacts|Keypad"
+        }).apply()
+        buildScreen()
+        showTab("Home Customization")
     }
 
     private fun buildSettings() {
