@@ -1015,8 +1015,9 @@ class MainActivity : Activity() {
     }
 
     private fun requestRuntimePermissions() {
-        val needed = arrayOf(Manifest.permission.READ_CALL_LOG, Manifest.permission.READ_CONTACTS)
-            .filter { checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED }
+        val permissions = mutableListOf(Manifest.permission.READ_CALL_LOG, Manifest.permission.READ_CONTACTS)
+        if (Build.VERSION.SDK_INT >= 33) permissions.add(Manifest.permission.POST_NOTIFICATIONS)
+        val needed = permissions.filter { checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED }
         if (needed.isNotEmpty()) requestPermissions(needed.toTypedArray(), 201)
     }
 
