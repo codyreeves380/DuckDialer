@@ -443,6 +443,18 @@ class MainActivity : Activity() {
                 applyLayoutPreset(preset)
             }, LinearLayout.LayoutParams(-1, dp(42)).apply { topMargin = dp(5) })
         }
+        (1..3).forEach { slot ->
+            val saved = prefs.contains("custom_layout_$slot")
+            layouts.addView(smallText("CUSTOM SLOT $slot" + if (saved) " · saved" else " · empty"), matchWrap())
+            val row = LinearLayout(this).apply { gravity = Gravity.CENTER }
+            row.addView(actionText("Save current", 0xFF292929.toInt(), white, 12f) {
+                saveCustomLayout(slot)
+            }, LinearLayout.LayoutParams(0, dp(40), 1f).apply { setMargins(dp(3), dp(3), dp(3), dp(3)) })
+            row.addView(actionText("Load", 0xFF292929.toInt(), white, 12f) {
+                loadCustomLayout(slot)
+            }, LinearLayout.LayoutParams(0, dp(40), 1f).apply { setMargins(dp(3), dp(3), dp(3), dp(3)) })
+            layouts.addView(row, matchWrap())
+        }
         content.addView(layouts, matchWrap())
 
         sectionTitle("Duck branding")
@@ -499,6 +511,55 @@ class MainActivity : Activity() {
         parent.addView(row, matchWrap())
     }
 
+
+
+    private fun layoutKeys(): List<String> = listOf(
+        "home_show_count", "home_brand_label", "home_show_duck", "home_keypad_letters",
+        "home_show_caller_hint", "home_show_caller_shortcut", "home_show_keypad",
+        "home_key_height", "home_duck_size", "home_greeting", "tab_order",
+        "tab_visible_Favorites", "tab_visible_Recents", "tab_visible_Contacts", "tab_visible_Keypad"
+    )
+
+    private fun saveCustomLayout(slot: Int) {
+        val values = layoutKeys().joinToString("\n") { key ->
+            val value: String = when {
+                key == "home_greeting" -> prefs.getString(key, "DUCKDIALER") ?: "DUCKDIALER"
+                key == "tab_order" -> prefs.getString(key, "Favorites|Recents|Contacts|Keypad") ?: "Favorites|Recents|Contacts|Keypad"
+                key.startsWith("home_key_height") -> prefs.getInt(key, 65).toString()
+                key == "home_duck_size" -> prefs.getInt(key, 25).toString()
+                else -> prefs.getBoolean(key, true).toString()
+            }
+            key + "=" + value.replace("\n", " ")
+        }
+        prefs.edit().putString("custom_layout_$slot", values).apply()
+        Toast.makeText(this, "Layout saved to slot $slot", Toast.LENGTH_SHORT).show()
+        showTab("Home Customization")
+    }
+
+    private fun loadCustomLayout(slot: Int) {
+        val raw = prefs.getString("custom_layout_$slot", null)
+        if (raw.isNullOrBlank()) {
+            Toast.makeText(this, "This layout slot is empty.", Toast.LENGTH_SHORT).show()
+            return
+        }
+        val editor = prefs.edit()
+        raw.lines().forEach { line ->
+            val split = line.indexOf("=")
+            if (split > 0) {
+                val key = line.substring(0, split)
+                val value = line.substring(split + 1)
+                when {
+                    key == "home_greeting" || key == "tab_order" -> editor.putString(key, value)
+                    key == "home_key_height" || key == "home_duck_size" -> editor.putInt(key, value.toIntOrNull() ?: 65)
+                    else -> editor.putBoolean(key, value.toBoolean())
+                }
+            }
+        }
+        editor.apply()
+        buildScreen()
+        showTab("Home Customization")
+        Toast.makeText(this, "Layout loaded", Toast.LENGTH_SHORT).show()
+    }
 
     private fun moveTab(tab: String, delta: Int) {
         val tabs = listOf("Favorites", "Recents", "Contacts", "Keypad")
