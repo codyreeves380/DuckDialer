@@ -213,14 +213,16 @@ class MainActivity : Activity() {
                     gravity = Gravity.CENTER
                     setTextColor(white)
                 })
-                letters[digit]?.let { sub ->
-                    key.addView(TextView(this).apply {
-                        text = sub
-                        textSize = 9f
-                        letterSpacing = 0.16f
-                        gravity = Gravity.CENTER
-                        setTextColor(muted)
-                    })
+                if (prefs.getBoolean("home_keypad_letters", true)) {
+                    letters[digit]?.let { sub ->
+                        key.addView(TextView(this).apply {
+                            text = sub
+                            textSize = 9f
+                            letterSpacing = 0.16f
+                            gravity = Gravity.CENTER
+                            setTextColor(muted)
+                        })
+                    }
                 }
                 rowView.addView(key, LinearLayout.LayoutParams(0, dp(prefs.getInt("home_key_height", 65)), 1f).apply {
                     setMargins(dp(5), dp(4), dp(5), dp(4))
@@ -977,17 +979,22 @@ class MainActivity : Activity() {
     }
 
     private fun placeOutgoingCall() {
-        var number = numberView.text.toString().trim()
-        if (number.isBlank()) return
+        placeCall(numberView.text.toString().trim())
+    }
+
+    // Apply caller-ID suppression in one place so keypad, contacts, recents, and
+    // favorites all follow the same preference. Never prefix service/emergency codes.
+    private fun placeCall(rawNumber: String) {
+        if (rawNumber.isBlank()) return
+        var number = rawNumber.trim()
         val serviceCode = number.startsWith("*") || number.startsWith("#")
         val normalized = number.filter { it.isDigit() || it == '+' }
         val emergency = normalized == "911" || normalized == "112"
-        if (prefs.getBoolean("hide_caller_id", false) && !serviceCode && !emergency) number = "*67$number"
-        placeCall(number)
-    }
-
-    private fun placeCall(number: String) {
-        if (number.isBlank()) return
+        val alreadySuppressed = number.startsWith("*67")
+        if (prefs.getBoolean("hide_caller_id", false) &&
+            !serviceCode && !emergency && !alreadySuppressed) {
+            number = "*67$number"
+        }
         try {
             val telecom = getSystemService(TELECOM_SERVICE) as TelecomManager
             telecom.placeCall(Uri.fromParts("tel", number, null), Bundle())
