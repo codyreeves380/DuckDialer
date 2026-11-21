@@ -318,7 +318,7 @@ class MainActivity : Activity() {
             setHintTextColor(muted)
             setTextColor(white)
             textSize = 14f
-            singleLine = true
+            isSingleLine = true
             inputType = android.text.InputType.TYPE_CLASS_TEXT
             imeOptions = EditorInfo.IME_ACTION_SEARCH
             background = rounded(panel, 14)
@@ -493,7 +493,7 @@ class MainActivity : Activity() {
             setTextColor(white)
             setHintTextColor(muted)
             hint = "Your app label"
-            singleLine = true
+            isSingleLine = true
             textSize = 14f
             background = rounded(0xFF242424.toInt(), 12)
             setPadding(dp(12), dp(10), dp(12), dp(10))
