@@ -759,6 +759,10 @@ class MainActivity : Activity() {
         }, matchWrap())
         about.addView(smallText("A dark, duck-approved dialer. Set DuckDialer as your default Phone app to handle calls."), matchWrap())
         content.addView(about, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(16) })
+
+        content.addView(actionText("←  Back to Phone", panel, white, 14f) {
+            showTab("Keypad")
+        }, LinearLayout.LayoutParams(-1, dp(48)).apply { topMargin = dp(18) })
     }
 
     private fun settingsCard() = LinearLayout(this).apply {
