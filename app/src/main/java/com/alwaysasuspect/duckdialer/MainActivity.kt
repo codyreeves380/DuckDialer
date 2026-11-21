@@ -14,7 +14,12 @@ import android.provider.CallLog
 import android.provider.ContactsContract
 import android.telecom.TelecomManager
 import android.text.Editable
+import android.text.SpannableStringBuilder
+import android.text.Spanned
 import android.text.TextWatcher
+import android.text.style.ForegroundColorSpan
+import android.text.style.RelativeSizeSpan
+import android.text.style.StyleSpan
 import android.view.Gravity
 import android.view.View
 import android.view.WindowInsets
@@ -120,23 +125,22 @@ class MainActivity : Activity() {
                 setTextColor(white)
             })
         }, LinearLayout.LayoutParams(0, -2, 1f))
-        titleRow.addView(actionText("⚙", panel, white, 22f) { showTab("Settings") },
-            LinearLayout.LayoutParams(dp(46), dp(46)))
-        titleRow.addView(TextView(this).apply {
-            text = if (prefs.getBoolean("home_show_duck", true)) "🦆" else ""
-            textSize = prefs.getInt("home_duck_size", 25).toFloat()
-            gravity = Gravity.CENTER
-        }, LinearLayout.LayoutParams(dp(42), dp(46)))
+        titleRow.addView(actionText("🦆", panel, white, 24f) { showTab("Settings") },
+            LinearLayout.LayoutParams(dp(48), dp(46)))
         header.addView(titleRow, matchWrap())
         countView = TextView(this).apply {
-            text = "TODAY  ·  — outgoing calls"
-            textSize = 12f
-            letterSpacing = 0.06f
-            setTextColor(muted)
-            setPadding(0, dp(6), 0, dp(6))
+            gravity = Gravity.CENTER
+            textAlignment = View.TEXT_ALIGNMENT_CENTER
+            textSize = 16f
+            typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+            setTextColor(white)
+            setPadding(dp(16), dp(if (prefs.getBoolean("counter_compact", false)) 10 else 16),
+                dp(16), dp(if (prefs.getBoolean("counter_compact", false)) 10 else 16))
+            background = counterBackground()
+            minHeight = dp(if (prefs.getBoolean("counter_compact", false)) 64 else 104)
         }
-        countView.visibility = if (prefs.getBoolean("home_show_count", true)) android.view.View.VISIBLE else android.view.View.GONE
-        header.addView(countView, matchWrap())
+        countView.visibility = if (prefs.getBoolean("home_show_count", true)) View.VISIBLE else View.GONE
+        header.addView(countView, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8) })
         root.addView(header, matchWrap())
 
         content = LinearLayout(this).apply {
@@ -461,6 +465,18 @@ class MainActivity : Activity() {
         addHomeSwitch(display, "home_keypad_letters", "Show keypad letter hints", true)
         content.addView(display, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(12) })
 
+        sectionTitle("Daily call counter")
+        val counter = settingsCard()
+        counter.addView(smallText("COUNTER STYLE"), matchWrap())
+        addCounterStyleRow(counter)
+        addHomeSwitch(counter, "counter_show_label", "Show Calls Made Today label", true)
+        addHomeSwitch(counter, "counter_show_icon", "Show flame icon", true)
+        addHomeSwitch(counter, "counter_show_comparison", "Compare with yesterday", true)
+        addHomeSwitch(counter, "counter_animation", "Animate count updates", true)
+        addHomeSwitch(counter, "counter_compact", "Use compact counter height", false)
+        counter.addView(smallText("Accent colors follow Appearance settings. The count is based on outgoing calls in your call history."), matchWrap())
+        content.addView(counter, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(12) })
+
         sectionTitle("Keypad size")
         val sizes = settingsCard()
         addChoiceRow(sizes, listOf("Compact" to 58, "Comfortable" to 65, "Large" to 74), "home_key_height", 65)
@@ -647,6 +663,52 @@ class MainActivity : Activity() {
         content.addView(card, matchWrap())
     }
 
+    private fun addCounterStyleRow(parent: LinearLayout) {
+        val styles = listOf("Glow", "Gradient", "Minimal", "Bubble", "Badge")
+        val row = LinearLayout(this).apply { gravity = Gravity.CENTER }
+        styles.forEach { style ->
+            val selected = prefs.getString("counter_style", "Glow") == style
+            row.addView(actionText(if (selected) "✓ $style" else style,
+                if (selected) orange else 0xFF292929.toInt(),
+                if (selected) 0xFF17100A.toInt() else white, 10f) {
+                prefs.edit().putString("counter_style", style).apply()
+                showTab("Home Customization")
+            }, LinearLayout.LayoutParams(0, dp(42), 1f).apply {
+                setMargins(dp(2), dp(7), dp(2), dp(7))
+            })
+        }
+        parent.addView(row, matchWrap())
+    }
+
+    private fun counterBackground(): GradientDrawable {
+        return when (prefs.getString("counter_style", "Glow")) {
+            "Gradient" -> GradientDrawable(GradientDrawable.Orientation.TL_BR,
+                intArrayOf(0xFF3A1600.toInt(), 0xFF17100A.toInt(), 0xFF101010.toInt())).apply {
+                cornerRadius = dp(22).toFloat()
+                setStroke(dp(1), orange)
+            }
+            "Minimal" -> GradientDrawable().apply {
+                setColor(0xFF151515.toInt())
+                cornerRadius = dp(14).toFloat()
+            }
+            "Bubble" -> GradientDrawable().apply {
+                setColor(0xFF24152D.toInt())
+                cornerRadius = dp(34).toFloat()
+                setStroke(dp(1), 0xFF8E45B5.toInt())
+            }
+            "Badge" -> GradientDrawable().apply {
+                setColor(0xFF2A1708.toInt())
+                cornerRadius = dp(12).toFloat()
+                setStroke(dp(2), orange)
+            }
+            else -> GradientDrawable().apply {
+                setColor(0xFF211307.toInt())
+                cornerRadius = dp(20).toFloat()
+                setStroke(dp(2), orange)
+            }
+        }
+    }
+
     private fun addHomeSwitch(parent: LinearLayout, key: String, label: String, default: Boolean) {
         parent.addView(Switch(this).apply {
             text = label
@@ -680,6 +742,8 @@ class MainActivity : Activity() {
         "home_show_count", "home_brand_label", "home_show_duck", "home_keypad_letters",
         "home_show_caller_hint", "home_show_caller_shortcut", "home_show_keypad",
         "home_key_height", "home_duck_size", "home_greeting", "tab_order",
+        "counter_style", "counter_show_label", "counter_show_icon", "counter_show_comparison",
+        "counter_animation", "counter_compact",
         "tab_visible_Favorites", "tab_visible_Recents", "tab_visible_Contacts", "tab_visible_Keypad"
     )
 
@@ -688,6 +752,7 @@ class MainActivity : Activity() {
             val value: String = when {
                 key == "home_greeting" -> prefs.getString(key, "DUCKDIALER") ?: "DUCKDIALER"
                 key == "tab_order" -> prefs.getString(key, "Favorites|Recents|Contacts|Keypad") ?: "Favorites|Recents|Contacts|Keypad"
+                key == "counter_style" -> prefs.getString(key, "Glow") ?: "Glow"
                 key.startsWith("home_key_height") -> prefs.getInt(key, 65).toString()
                 key == "home_duck_size" -> prefs.getInt(key, 25).toString()
                 else -> prefs.getBoolean(key, true).toString()
@@ -712,7 +777,7 @@ class MainActivity : Activity() {
                 val key = line.substring(0, split)
                 val value = line.substring(split + 1)
                 when {
-                    key == "home_greeting" || key == "tab_order" -> editor.putString(key, value)
+                    key == "home_greeting" || key == "tab_order" || key == "counter_style" -> editor.putString(key, value)
                     key == "home_key_height" || key == "home_duck_size" -> editor.putInt(key, value.toIntOrNull() ?: 65)
                     else -> editor.putBoolean(key, value.toBoolean())
                 }
@@ -1071,21 +1136,69 @@ class MainActivity : Activity() {
     }
 
     private fun refreshTodayCount() {
+        if (!::countView.isInitialized) return
+        countView.background = counterBackground()
+        countView.minHeight = dp(if (prefs.getBoolean("counter_compact", false)) 64 else 104)
+        countView.setPadding(dp(16), dp(if (prefs.getBoolean("counter_compact", false)) 10 else 16),
+            dp(16), dp(if (prefs.getBoolean("counter_compact", false)) 10 else 16))
         if (checkSelfPermission(Manifest.permission.READ_CALL_LOG) != PackageManager.PERMISSION_GRANTED) {
-            countView.text = "TODAY  ·  allow call-log access"
+            countView.text = "Allow call-log access to show today's count"
             return
         }
-        val start = Calendar.getInstance().apply {
+        val todayStart = Calendar.getInstance().apply {
             set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0)
             set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
-        }.timeInMillis
-        val selection = CallLog.Calls.DATE + " >= ? AND " + CallLog.Calls.TYPE + " = ?"
-        val args = arrayOf(start.toString(), CallLog.Calls.OUTGOING_TYPE.toString())
+        }
+        val tomorrowStart = (todayStart.clone() as Calendar).apply { add(Calendar.DAY_OF_YEAR, 1) }
+        val yesterdayStart = (todayStart.clone() as Calendar).apply { add(Calendar.DAY_OF_YEAR, -1) }
+        fun outgoingCount(from: Long, until: Long): Int {
+            val selection = CallLog.Calls.DATE + " >= ? AND " + CallLog.Calls.DATE +
+                " < ? AND " + CallLog.Calls.TYPE + " = ?"
+            val args = arrayOf(from.toString(), until.toString(), CallLog.Calls.OUTGOING_TYPE.toString())
+            return contentResolver.query(CallLog.Calls.CONTENT_URI, arrayOf(CallLog.Calls._ID),
+                selection, args, null)?.use { it.count } ?: 0
+        }
         try {
-            contentResolver.query(CallLog.Calls.CONTENT_URI, arrayOf(CallLog.Calls._ID),
-                selection, args, null)?.use { countView.text = "TODAY  ·  ${it.count} outgoing calls" }
+            val today = outgoingCount(todayStart.timeInMillis, tomorrowStart.timeInMillis)
+            val yesterday = if (prefs.getBoolean("counter_show_comparison", true))
+                outgoingCount(yesterdayStart.timeInMillis, todayStart.timeInMillis) else 0
+            val display = SpannableStringBuilder()
+            if (prefs.getBoolean("counter_show_label", true)) {
+                val labelStart = display.length
+                if (prefs.getBoolean("counter_show_icon", true)) display.append("🔥  ")
+                display.append("CALLS MADE TODAY")
+                display.setSpan(RelativeSizeSpan(0.82f), labelStart, display.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                display.setSpan(ForegroundColorSpan(orange), labelStart, display.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                display.append("\\n")
+            }
+            val numberStart = display.length
+            display.append(today.toString())
+            display.setSpan(RelativeSizeSpan(2.7f), numberStart, display.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            display.setSpan(StyleSpan(Typeface.BOLD), numberStart, display.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            if (prefs.getBoolean("counter_show_comparison", true)) {
+                val difference = today - yesterday
+                val comparison = when {
+                    difference > 0 -> "▲ $difference vs yesterday"
+                    difference < 0 -> "▼ ${-difference} vs yesterday"
+                    else -> "Same as yesterday"
+                }
+                display.append("\\n")
+                val comparisonStart = display.length
+                display.append(comparison)
+                display.setSpan(RelativeSizeSpan(0.88f), comparisonStart, display.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                display.setSpan(ForegroundColorSpan(muted), comparisonStart, display.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            }
+            countView.text = display
+            countView.textSize = 16f
+            countView.setTextColor(white)
+            if (prefs.getBoolean("counter_animation", true)) {
+                countView.animate().cancel()
+                countView.scaleX = 0.94f
+                countView.scaleY = 0.94f
+                countView.animate().scaleX(1f).scaleY(1f).setDuration(220).start()
+            }
         } catch (_: SecurityException) {
-            countView.text = "TODAY  ·  call history unavailable"
+            countView.text = "Call history unavailable"
         }
     }
 
