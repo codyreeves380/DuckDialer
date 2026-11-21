@@ -432,7 +432,7 @@ class MainActivity : Activity() {
             setTextColor(white)
             setPadding(0, dp(10), 0, dp(8))
         }, matchWrap())
-        preview.addView(smallText("Key size: ${prefs.getInt(\"home_key_height\", 65)}dp  ·  Duck: ${prefs.getInt(\"home_duck_size\", 25)}dp"), matchWrap())
+        preview.addView(smallText("Key size: ${prefs.getInt("home_key_height", 65)}dp  ·  Duck: ${prefs.getInt("home_duck_size", 25)}dp"), matchWrap())
         content.addView(preview, matchWrap())
 
         sectionTitle("Navigation tabs")
