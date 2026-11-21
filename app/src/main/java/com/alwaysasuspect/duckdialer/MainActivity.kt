@@ -22,6 +22,7 @@ import android.view.DragEvent
 import android.view.inputmethod.EditorInfo
 import android.widget.EditText
 import android.widget.LinearLayout
+import android.widget.HorizontalScrollView
 import android.widget.ScrollView
 import android.widget.Switch
 import android.widget.TextView
@@ -37,6 +38,7 @@ class MainActivity : Activity() {
     private lateinit var content: LinearLayout
     private val prefs by lazy { getSharedPreferences("duckdialer_settings", MODE_PRIVATE) }
     private var selectedTab = "Keypad"
+    private var selectedSettingsSection = "General"
     private var recentFilter = "All"
     private val white = 0xFFF5F5F5.toInt()
     private val muted = 0xFF9B9B9B.toInt()
@@ -719,50 +721,95 @@ class MainActivity : Activity() {
 
     private fun buildSettings() {
         sectionTitle("Settings")
-        content.addView(actionText("✦  Customize Home Screen", orange, 0xFF17100A.toInt(), 15f) {
-            showTab("Home Customization")
-        }, LinearLayout.LayoutParams(-1, dp(52)).apply { bottomMargin = dp(16) })
-        val callerCard = settingsCard()
-        val hide = Switch(this).apply {
-            text = "Hide caller ID (*67)"
-            textSize = 15f
-            setTextColor(white)
-            isChecked = prefs.getBoolean("hide_caller_id", false)
-            buttonTintList = ColorStateList.valueOf(orange)
-            setOnCheckedChangeListener { _, checked ->
-                prefs.edit().putBoolean("hide_caller_id", checked).apply()
+        content.addView(smallText("Choose a category"), matchWrap())
+        val categories = listOf("General", "Caller ID", "Appearance", "Home Screen", "About")
+        val scroller = HorizontalScrollView(this).apply {
+            isHorizontalScrollBarEnabled = false
+            setPadding(0, dp(8), 0, dp(14))
+        }
+        val tabs = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
+        categories.forEach { category ->
+            tabs.addView(actionText(
+                if (selectedSettingsSection == category) "✓  $category" else category,
+                if (selectedSettingsSection == category) orange else panel,
+                if (selectedSettingsSection == category) 0xFF17100A.toInt() else white, 12f
+            ) {
+                selectedSettingsSection = category
+                showTab("Settings")
+            }, LinearLayout.LayoutParams(-2, dp(42)).apply { setMargins(dp(3), 0, dp(5), 0) })
+        }
+        scroller.addView(tabs)
+        content.addView(scroller, LinearLayout.LayoutParams(-1, dp(58)))
+
+        when (selectedSettingsSection) {
+            "General" -> {
+                sectionTitle("General")
+                val card = settingsCard()
+                card.addView(TextView(this).apply {
+                    text = "DuckDialer"
+                    textSize = 17f
+                    setTextColor(white)
+                }, matchWrap())
+                card.addView(smallText("Set DuckDialer as your default Phone app to handle calls. Call history and contacts depend on the permissions you allow."), matchWrap())
+                content.addView(card, matchWrap())
+            }
+            "Caller ID" -> {
+                sectionTitle("Caller ID")
+                val card = settingsCard()
+                card.addView(Switch(this).apply {
+                    text = "Hide caller ID (*67)"
+                    textSize = 15f
+                    setTextColor(white)
+                    isChecked = prefs.getBoolean("hide_caller_id", false)
+                    buttonTintList = ColorStateList.valueOf(orange)
+                    setOnCheckedChangeListener { _, checked ->
+                        prefs.edit().putBoolean("hide_caller_id", checked).apply()
+                    }
+                }, matchWrap())
+                card.addView(smallText("Prepends *67 to eligible outgoing calls. Carrier support varies. Emergency and service codes are excluded."), matchWrap())
+                content.addView(card, matchWrap())
+            }
+            "Appearance" -> {
+                sectionTitle("Accent color")
+                val colors = listOf("Orange" to 0xFFFF8A00.toInt(), "Blue" to 0xFF3998FF.toInt(),
+                    "Purple" to 0xFFB078FF.toInt(), "Green" to 0xFF39C98A.toInt())
+                colors.chunked(2).forEach { pair ->
+                    val row = LinearLayout(this).apply { gravity = Gravity.CENTER }
+                    pair.forEach { (name, color) ->
+                        row.addView(actionText(if (orange == color) "✓  $name" else name, color,
+                            0xFF101010.toInt(), 13f) {
+                            prefs.edit().putInt("accent_color", color).apply()
+                            selectedSettingsSection = "Appearance"
+                            showTab("Settings")
+                        }, LinearLayout.LayoutParams(0, dp(46), 1f).apply { setMargins(dp(4), dp(4), dp(4), dp(4)) })
+                    }
+                    content.addView(row, matchWrap())
+                }
+            }
+            "Home Screen" -> {
+                sectionTitle("Home Screen")
+                val card = settingsCard()
+                card.addView(smallText("Customize the keypad, home widgets, navigation tabs, section order, branding, and saved layouts."), matchWrap())
+                content.addView(card, matchWrap())
+                content.addView(actionText("✦  Open Home Screen Customization", orange, 0xFF17100A.toInt(), 14f) {
+                    showTab("Home Customization")
+                }, LinearLayout.LayoutParams(-1, dp(52)).apply { topMargin = dp(12) })
+            }
+            "About" -> {
+                sectionTitle("About DuckDialer")
+                val card = settingsCard()
+                card.addView(TextView(this).apply {
+                    text = "DuckDialer"
+                    textSize = 17f
+                    setTextColor(white)
+                }, matchWrap())
+                card.addView(smallText("A dark, duck-approved dialer. Built as an independent Android phone app."), matchWrap())
+                content.addView(card, matchWrap())
             }
         }
-        callerCard.addView(hide, matchWrap())
-        callerCard.addView(smallText("Prepends *67 to eligible outgoing calls. Carrier support varies."), matchWrap())
-        content.addView(callerCard, matchWrap())
-
-        sectionTitle("Accent color")
-        val colors = listOf("Orange" to 0xFFFF8A00.toInt(), "Blue" to 0xFF3998FF.toInt(),
-            "Purple" to 0xFFB078FF.toInt(), "Green" to 0xFF39C98A.toInt())
-        colors.chunked(2).forEach { pair ->
-            val row = LinearLayout(this).apply { gravity = Gravity.CENTER }
-            pair.forEach { (name, color) ->
-                row.addView(actionText(if (orange == color) "✓  $name" else name, color,
-                    0xFF101010.toInt(), 13f) {
-                    prefs.edit().putInt("accent_color", color).apply()
-                    showTab("Settings")
-                }, LinearLayout.LayoutParams(0, dp(46), 1f).apply { setMargins(dp(4), dp(4), dp(4), dp(4)) })
-            }
-            content.addView(row, matchWrap())
-        }
-        val about = settingsCard()
-        about.addView(TextView(this).apply {
-            text = "DuckDialer"
-            textSize = 17f
-            setTextColor(white)
-        }, matchWrap())
-        about.addView(smallText("A dark, duck-approved dialer. Set DuckDialer as your default Phone app to handle calls."), matchWrap())
-        content.addView(about, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(16) })
-
         content.addView(actionText("←  Back to Phone", panel, white, 14f) {
             showTab("Keypad")
-        }, LinearLayout.LayoutParams(-1, dp(48)).apply { topMargin = dp(18) })
+        }, LinearLayout.LayoutParams(-1, dp(48)).apply { topMargin = dp(20) })
     }
 
     private fun settingsCard() = LinearLayout(this).apply {
