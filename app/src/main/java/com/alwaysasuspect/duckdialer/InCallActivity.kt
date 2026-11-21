@@ -2,6 +2,9 @@ package com.alwaysasuspect.duckdialer
 
 import android.app.Activity
 import android.graphics.Typeface
+import android.graphics.BitmapFactory
+import android.net.Uri
+import android.provider.ContactsContract
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.os.Handler
@@ -13,6 +16,8 @@ import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
+import android.widget.FrameLayout
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
@@ -22,6 +27,9 @@ import java.util.Locale
 class InCallActivity : Activity() {
     private lateinit var stateView: TextView
     private lateinit var numberView: TextView
+    private lateinit var callerNameView: TextView
+    private lateinit var avatarPhoto: ImageView
+    private lateinit var avatarFallback: TextView
     private lateinit var durationView: TextView
     private lateinit var answerRow: LinearLayout
     private lateinit var controlsPanel: LinearLayout
@@ -90,15 +98,37 @@ class InCallActivity : Activity() {
             gravity = Gravity.CENTER
         }, LinearLayout.LayoutParams(-1, dp(32)))
 
-        val avatar = TextView(this).apply {
+        val avatarFrame = FrameLayout(this).apply {
+            background = circle(0xFF2B1D10.toInt())
+            clipToOutline = true
+        }
+        avatarFallback = TextView(this).apply {
             text = "🦆"
             textSize = 48f
             gravity = Gravity.CENTER
-            background = circle(0xFF2B1D10.toInt())
         }
-        root.addView(avatar, LinearLayout.LayoutParams(dp(108), dp(108)).apply {
+        avatarPhoto = ImageView(this).apply {
+            scaleType = ImageView.ScaleType.CENTER_CROP
+            visibility = View.GONE
+            contentDescription = "Caller contact photo"
+        }
+        avatarFrame.addView(avatarFallback, FrameLayout.LayoutParams(-1, -1))
+        avatarFrame.addView(avatarPhoto, FrameLayout.LayoutParams(-1, -1))
+        root.addView(avatarFrame, LinearLayout.LayoutParams(dp(108), dp(108)).apply {
             topMargin = dp(28)
-            bottomMargin = dp(20)
+            bottomMargin = dp(12)
+        })
+
+        callerNameView = TextView(this).apply {
+            textSize = 19f
+            typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+            setTextColor(white)
+            gravity = Gravity.CENTER
+            maxLines = 2
+            visibility = View.GONE
+        }
+        root.addView(callerNameView, LinearLayout.LayoutParams(-1, -2).apply {
+            bottomMargin = dp(4)
         })
 
         numberView = TextView(this).apply {
@@ -287,7 +317,9 @@ class InCallActivity : Activity() {
 
     private fun refresh() {
         val call = DuckDialerInCallService.activeCall
-        numberView.text = call?.details?.handle?.schemeSpecificPart ?: "Unknown caller"
+        val number = call?.details?.handle?.schemeSpecificPart
+        numberView.text = number ?: "Unknown caller"
+        updateCallerIdentity(number)
         val state = call?.state
         stateView.text = when (state) {
             Call.STATE_RINGING -> "INCOMING CALL"
@@ -309,6 +341,59 @@ class InCallActivity : Activity() {
         keypadButton.text = if (keypadVisible) "▦\nHide keypad" else "▦\nKeypad"
         durationView.visibility = if (inCall) View.VISIBLE else View.GONE
         updateDuration()
+    }
+
+    private fun updateCallerIdentity(rawNumber: String?) {
+        callerNameView.text = ""
+        callerNameView.visibility = View.GONE
+        avatarPhoto.setImageDrawable(null)
+        avatarPhoto.visibility = View.GONE
+        avatarFallback.visibility = View.VISIBLE
+        if (rawNumber.isNullOrBlank()) return
+
+        try {
+            val lookupUri = Uri.withAppendedPath(
+                ContactsContract.PhoneLookup.CONTENT_FILTER_URI,
+                Uri.encode(rawNumber)
+            )
+            contentResolver.query(
+                lookupUri,
+                arrayOf(
+                    ContactsContract.PhoneLookup._ID,
+                    ContactsContract.PhoneLookup.LOOKUP_KEY,
+                    ContactsContract.PhoneLookup.DISPLAY_NAME
+                ),
+                null,
+                null,
+                null
+            )?.use { cursor ->
+                if (cursor.moveToFirst()) {
+                    val contactId = cursor.getLong(0)
+                    val lookupKey = cursor.getString(1)
+                    val displayName = cursor.getString(2)
+                    if (!displayName.isNullOrBlank()) {
+                        callerNameView.text = displayName
+                        callerNameView.visibility = View.VISIBLE
+                    }
+
+                    val contactUri = ContactsContract.Contacts.getLookupUri(contactId, lookupKey)
+                    if (contactUri != null) {
+                        ContactsContract.Contacts.openContactPhotoInputStream(contentResolver, contactUri, true)?.use { stream ->
+                            val bitmap = BitmapFactory.decodeStream(stream)
+                            if (bitmap != null) {
+                                avatarPhoto.setImageBitmap(bitmap)
+                                avatarPhoto.visibility = View.VISIBLE
+                                avatarFallback.visibility = View.GONE
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (_: SecurityException) {
+            // Contacts permission may be revoked while a call screen is open.
+        } catch (_: Exception) {
+            // Keep the number and DuckDialer fallback visible if lookup fails.
+        }
     }
 
     private fun updateDuration() {
