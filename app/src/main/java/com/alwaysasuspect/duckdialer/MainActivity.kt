@@ -316,7 +316,7 @@ class MainActivity : Activity() {
                     while (cursor.moveToNext() && shown < 150) {
                         val name = cursor.getString(0).orEmpty()
                         val number = cursor.getString(1).orEmpty()
-                        personRow(name.ifBlank { number }, number, number, true) { placeCall(number) }
+                        personRow(name.ifBlank { number }, number, number, true, results) { placeCall(number) }
                         shown++
                     }
                     if (shown == 0) emptyMessage("No matching contacts found.")
@@ -445,7 +445,7 @@ class MainActivity : Activity() {
     }
 
     private fun personRow(title: String, subtitle: String, number: String,
-        favoriteAction: Boolean = false, action: () -> Unit) {
+        favoriteAction: Boolean = false, parent: LinearLayout = content, action: () -> Unit) {
         val row = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
@@ -488,7 +488,7 @@ class MainActivity : Activity() {
         row.addView(actionText("☎", panel, orange, 19f) { action() },
             LinearLayout.LayoutParams(dp(38), dp(42)))
         row.setOnClickListener { action() }
-        content.addView(row, matchWrap().apply { setMargins(0, 0, 0, dp(8)) })
+        parent.addView(row, matchWrap().apply { setMargins(0, 0, 0, dp(8)) })
     }
 
     private fun actionText(label: String, color: Int, foreground: Int,
