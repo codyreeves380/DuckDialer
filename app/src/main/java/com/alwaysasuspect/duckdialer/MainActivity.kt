@@ -234,11 +234,10 @@ class MainActivity : Activity() {
             hint = "Enter or paste number"
             isSingleLine = true
             inputType = android.text.InputType.TYPE_CLASS_PHONE
-            imeOptions = EditorInfo.IME_ACTION_CALL
+            imeOptions = EditorInfo.IME_ACTION_GO
             minHeight = dp(58)
             setPadding(dp(12), dp(5), dp(12), dp(5))
             background = rounded(panel, 16)
-            selectAllOnFocus = false
             importantForAutofill = View.IMPORTANT_FOR_AUTOFILL_NO
         }
         numberView.tag = "entry"
@@ -288,7 +287,7 @@ class MainActivity : Activity() {
         }
         actions.addView(actionText("⌫", panel, white, 22f) {
             val value = numberView.text.toString()
-            if (value.isNotEmpty()) numberView.text = value.dropLast(1)
+            if (value.isNotEmpty()) numberView.setText(value.dropLast(1))
         }, LinearLayout.LayoutParams(dp(62), dp(54)).apply { setMargins(dp(8), 0, dp(8), 0) })
         actions.addView(actionText("Call", orange, 0xFF17100A.toInt(), 17f) {
             placeOutgoingCall()
