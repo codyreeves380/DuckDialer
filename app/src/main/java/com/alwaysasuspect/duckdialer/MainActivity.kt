@@ -806,12 +806,28 @@ class MainActivity : Activity() {
                 callSwitch("incall_show_control_labels", "Show labels under control icons", true)
                 content.addView(display, matchWrap())
                 sectionTitle("Avatar size")
+                fun callChoiceRow(parent: LinearLayout, choices: List<Pair<String, Int>>, key: String, default: Int) {
+                    val row = LinearLayout(this).apply { gravity = Gravity.CENTER }
+                    choices.forEach { (label, value) ->
+                        val selected = prefs.getInt(key, default) == value
+                        row.addView(actionText(if (selected) "✓ $label" else label,
+                            if (selected) orange else 0xFF292929.toInt(),
+                            if (selected) 0xFF17100A.toInt() else white, 11f) {
+                            prefs.edit().putInt(key, value).apply()
+                            selectedSettingsSection = "In-Call"
+                            showTab("Settings")
+                        }, LinearLayout.LayoutParams(0, dp(42), 1f).apply {
+                            setMargins(dp(3), dp(7), dp(3), dp(7))
+                        })
+                    }
+                    parent.addView(row, matchWrap())
+                }
                 val avatar = settingsCard()
-                addChoiceRow(avatar, listOf("Small" to 80, "Medium" to 108, "Large" to 144), "incall_avatar_size", 108)
+                callChoiceRow(avatar, listOf("Small" to 80, "Medium" to 108, "Large" to 144), "incall_avatar_size", 108)
                 content.addView(avatar, matchWrap())
                 sectionTitle("Call control size")
                 val controls = settingsCard()
-                addChoiceRow(controls, listOf("Compact" to 68, "Comfortable" to 78, "Large" to 100), "incall_control_size", 78)
+                callChoiceRow(controls, listOf("Compact" to 68, "Comfortable" to 78, "Large" to 100), "incall_control_size", 78)
                 content.addView(controls, matchWrap())
                 sectionTitle("In-call accent")
                 val callColors = listOf("Orange" to 0xFFFF8A00.toInt(), "Blue" to 0xFF3998FF.toInt(),
