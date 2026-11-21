@@ -25,6 +25,8 @@ import java.lang.ref.WeakReference
 import java.util.Locale
 
 class InCallActivity : Activity() {
+    private lateinit var brandView: TextView
+    private lateinit var avatarFrame: FrameLayout
     private lateinit var stateView: TextView
     private lateinit var numberView: TextView
     private lateinit var callerNameView: TextView
@@ -41,7 +43,8 @@ class InCallActivity : Activity() {
     private var muted = false
     private var speakerOn = false
     private var keypadVisible = false
-    private val orange = 0xFFFF8A00.toInt()
+    private val prefs by lazy { getSharedPreferences("duckdialer_settings", MODE_PRIVATE) }
+    private val orange: Int get() = prefs.getInt("incall_accent_color", prefs.getInt("accent_color", 0xFFFF8A00.toInt()))
     private val white = 0xFFF5F5F5.toInt()
     private val mutedText = 0xFFAAAAAA.toInt()
     private val panel = 0xFF202020.toInt()
@@ -89,18 +92,21 @@ class InCallActivity : Activity() {
             setBackgroundColor(0xFF080808.toInt())
         }
 
-        root.addView(TextView(this).apply {
+        brandView = TextView(this).apply {
             text = "🦆  DUCKDIALER"
             textSize = 13f
             letterSpacing = 0.18f
             typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
             setTextColor(orange)
             gravity = Gravity.CENTER
-        }, LinearLayout.LayoutParams(-1, dp(32)))
+            visibility = if (prefs.getBoolean("incall_show_brand", true)) View.VISIBLE else View.GONE
+        }
+        root.addView(brandView, LinearLayout.LayoutParams(-1, dp(32)))
 
-        val avatarFrame = FrameLayout(this).apply {
+        avatarFrame = FrameLayout(this).apply {
             background = circle(0xFF2B1D10.toInt())
             clipToOutline = true
+            visibility = if (prefs.getBoolean("incall_show_avatar", true)) View.VISIBLE else View.GONE
         }
         avatarFallback = TextView(this).apply {
             text = "🦆"
@@ -114,7 +120,8 @@ class InCallActivity : Activity() {
         }
         avatarFrame.addView(avatarFallback, FrameLayout.LayoutParams(-1, -1))
         avatarFrame.addView(avatarPhoto, FrameLayout.LayoutParams(-1, -1))
-        root.addView(avatarFrame, LinearLayout.LayoutParams(dp(108), dp(108)).apply {
+        val avatarSize = prefs.getInt("incall_avatar_size", 108).coerceIn(80, 144)
+        root.addView(avatarFrame, LinearLayout.LayoutParams(dp(avatarSize), dp(avatarSize)).apply {
             topMargin = dp(28)
             bottomMargin = dp(12)
         })
@@ -155,6 +162,7 @@ class InCallActivity : Activity() {
             gravity = Gravity.CENTER
             setPadding(0, dp(5), 0, dp(22))
         }
+        durationView.visibility = if (prefs.getBoolean("incall_show_timer", true)) View.VISIBLE else View.GONE
         root.addView(durationView, LinearLayout.LayoutParams(-1, -2))
 
         answerRow = LinearLayout(this).apply {
@@ -290,8 +298,8 @@ class InCallActivity : Activity() {
 
     private fun control(symbol: String, label: String, onTap: () -> Unit): TextView =
         TextView(this).apply {
-            text = "$symbol\n$label"
-            textSize = 13f
+            text = if (prefs.getBoolean("incall_show_control_labels", true)) "$symbol\n$label" else symbol
+            textSize = if (prefs.getBoolean("incall_show_control_labels", true)) 13f else 22f
             gravity = Gravity.CENTER
             setLineSpacing(dp(4).toFloat(), 1f)
             setTextColor(white)
@@ -299,7 +307,7 @@ class InCallActivity : Activity() {
             setOnClickListener { onTap() }
         }
 
-    private fun controlParams() = LinearLayout.LayoutParams(0, dp(78), 1f).apply {
+    private fun controlParams() = LinearLayout.LayoutParams(0, dp(prefs.getInt("incall_control_size", 78).coerceIn(68, 100)), 1f).apply {
         setMargins(dp(5), dp(5), dp(5), dp(5))
     }
 
@@ -406,6 +414,7 @@ class InCallActivity : Activity() {
         }
         val seconds = ((System.currentTimeMillis() - connectedAt).coerceAtLeast(0L) / 1000L)
         durationView.text = String.format(Locale.getDefault(), "%02d:%02d", seconds / 60, seconds % 60)
+        durationView.visibility = if (prefs.getBoolean("incall_show_timer", true)) View.VISIBLE else View.GONE
     }
 
     private fun rounded(color: Int, radius: Int) = GradientDrawable().apply {
