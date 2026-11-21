@@ -29,6 +29,7 @@ import android.view.inputmethod.EditorInfo
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.HorizontalScrollView
+import android.widget.ImageView
 import android.widget.ScrollView
 import android.widget.Switch
 import android.widget.TextView
@@ -294,9 +295,33 @@ class MainActivity : Activity() {
             val value = numberView.text.toString()
             if (value.isNotEmpty()) numberView.setText(value.dropLast(1))
         }, LinearLayout.LayoutParams(dp(62), dp(54)).apply { setMargins(dp(8), 0, dp(8), 0) })
-        actions.addView(actionText("Call", orange, 0xFF17100A.toInt(), 17f) {
-            placeOutgoingCall()
-        }, LinearLayout.LayoutParams(0, dp(54), 1f).apply { setMargins(dp(8), 0, dp(8), 0) })
+        val callButton = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+            background = rounded(orange, 30)
+            isClickable = true
+            isFocusable = true
+            contentDescription = "Place call"
+            setOnClickListener { placeOutgoingCall() }
+            val callIcon = ImageView(this@MainActivity).apply {
+                setImageResource(R.drawable.ic_reed_duck_call)
+                contentDescription = "Reed duck call"
+                scaleType = ImageView.ScaleType.FIT_CENTER
+            }
+            addView(callIcon, LinearLayout.LayoutParams(dp(58), dp(34)))
+            addView(TextView(this@MainActivity).apply {
+                text = "CALL"
+                textSize = 16f
+                letterSpacing = 0.12f
+                gravity = Gravity.CENTER
+                typeface = Typeface.create("sans-serif-black", Typeface.NORMAL)
+                setTextColor(0xFF17100A.toInt())
+                setPadding(dp(8), 0, dp(8), 0)
+            }, LinearLayout.LayoutParams(-2, -1))
+        }
+        actions.addView(callButton, LinearLayout.LayoutParams(0, dp(58), 1f).apply {
+            setMargins(dp(8), 0, dp(8), 0)
+        })
         actions.tag = "call"
         content.addView(actions, matchWrap())
         val hint = TextView(this).apply {
