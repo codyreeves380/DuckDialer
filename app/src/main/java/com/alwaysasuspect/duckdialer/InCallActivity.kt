@@ -78,7 +78,7 @@ class InCallActivity : Activity() {
 
     private fun buildUi() {
         val scroll = ScrollView(this).apply {
-            fillViewport = true
+            isFillViewport = true
             setBackgroundColor(0xFF080808.toInt())
             isVerticalScrollBarEnabled = false
         }
