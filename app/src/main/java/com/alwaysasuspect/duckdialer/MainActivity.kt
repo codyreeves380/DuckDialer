@@ -558,7 +558,7 @@ class MainActivity : Activity() {
                 setPadding(dp(6), dp(3), dp(6), dp(3))
                 background = rounded(0xFF222222.toInt(), 10)
                 setOnLongClickListener {
-                    startDragAndDrop(ClipData.newPlainText("home-section", section), View.DragShadowBuilder(this), section, View.DRAG_FLAG_GLOBAL)
+                    startDragAndDrop(ClipData.newPlainText("home-section", section), View.DragShadowBuilder(this), section, 0)
                 }
                 setOnDragListener { target, event ->
                     when (event.action) {
