@@ -1,0 +1,54 @@
+name: Unpack DuckDialer source archive
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "DuckDialer-Android-source.tar.xz"
+
+permissions:
+  contents: write
+
+jobs:
+  unpack:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Extract source archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          ARCHIVE="DuckDialer-Android-source.tar.xz"
+          if [[ ! -f "$ARCHIVE" ]]; then
+            echo "::error::Could not find $ARCHIVE in the repository root."
+            exit 1
+          fi
+
+          TEMP_DIR="$(mktemp -d)"
+          tar -xJf "$ARCHIVE" -C "$TEMP_DIR"
+
+          shopt -s dotglob nullglob
+          entries=("$TEMP_DIR"/*)
+          if [[ ${#entries[@]} -eq 1 && -d "${entries[0]}" ]]; then
+            cp -a "${entries[0]}/." .
+          else
+            cp -a "$TEMP_DIR/." .
+          fi
+
+          rm -rf "$TEMP_DIR"
+
+      - name: Commit extracted files
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No extracted changes to commit."
+          else
+            git commit -m "Unpack DuckDialer Android source"
+            git push
+          fi
