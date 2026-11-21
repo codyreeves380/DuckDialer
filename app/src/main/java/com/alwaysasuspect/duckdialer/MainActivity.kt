@@ -69,8 +69,8 @@ class MainActivity : Activity() {
         val titleRow = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL }
         titleRow.addView(LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            addView(TextView(this@MainActivity).apply {
-                text = "DUCKDIALER"
+            if (prefs.getBoolean("home_brand_label", true)) addView(TextView(this@MainActivity).apply {
+                text = prefs.getString("home_greeting", "DUCKDIALER") ?: "DUCKDIALER"
                 textSize = 10f
                 letterSpacing = 0.18f
                 typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
@@ -86,8 +86,8 @@ class MainActivity : Activity() {
         titleRow.addView(actionText("⚙", panel, white, 22f) { showTab("Settings") },
             LinearLayout.LayoutParams(dp(46), dp(46)))
         titleRow.addView(TextView(this).apply {
-            text = "🦆"
-            textSize = 25f
+            text = if (prefs.getBoolean("home_show_duck", true)) "🦆" else ""
+            textSize = prefs.getInt("home_duck_size", 25).toFloat()
             gravity = Gravity.CENTER
         }, LinearLayout.LayoutParams(dp(42), dp(46)))
         header.addView(titleRow, matchWrap())
@@ -98,6 +98,7 @@ class MainActivity : Activity() {
             setTextColor(muted)
             setPadding(0, dp(6), 0, dp(6))
         }
+        countView.visibility = if (prefs.getBoolean("home_show_count", true)) android.view.View.VISIBLE else android.view.View.GONE
         header.addView(countView, matchWrap())
         root.addView(header, matchWrap())
 
@@ -159,6 +160,7 @@ class MainActivity : Activity() {
             "Recents" -> buildRecents()
             "Contacts" -> buildContacts()
             "Settings" -> buildSettings()
+            "Home Customization" -> buildHomeCustomization()
             else -> buildFavorites()
         }
     }
@@ -201,7 +203,7 @@ class MainActivity : Activity() {
                         setTextColor(muted)
                     })
                 }
-                rowView.addView(key, LinearLayout.LayoutParams(0, dp(65), 1f).apply {
+                rowView.addView(key, LinearLayout.LayoutParams(0, dp(prefs.getInt("home_key_height", 65)), 1f).apply {
                     setMargins(dp(5), dp(4), dp(5), dp(4))
                 })
             }
@@ -370,8 +372,82 @@ class MainActivity : Activity() {
         }
     }
 
+
+    private fun buildHomeCustomization() {
+        sectionTitle("Customize Home")
+        content.addView(smallText("Changes save automatically."), matchWrap())
+        val display = settingsCard()
+        display.addView(smallText("HOME DISPLAY"), matchWrap())
+        addHomeSwitch(display, "home_show_count", "Show today's call count", true)
+        addHomeSwitch(display, "home_brand_label", "Show DuckDialer label", true)
+        addHomeSwitch(display, "home_show_duck", "Show duck logo in header", true)
+        addHomeSwitch(display, "home_keypad_letters", "Show keypad letter hints", true)
+        content.addView(display, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(12) })
+
+        sectionTitle("Keypad size")
+        val sizes = settingsCard()
+        addChoiceRow(sizes, listOf("Compact" to 58, "Comfortable" to 65, "Large" to 74), "home_key_height", 65)
+        content.addView(sizes, matchWrap())
+
+        sectionTitle("Duck branding")
+        val duck = settingsCard()
+        addChoiceRow(duck, listOf("Small" to 20, "Medium" to 25, "Large" to 31), "home_duck_size", 25)
+        val greeting = EditText(this).apply {
+            setText(prefs.getString("home_greeting", "DUCKDIALER"))
+            setTextColor(white)
+            setHintTextColor(muted)
+            hint = "Your app label"
+            singleLine = true
+            textSize = 14f
+            background = rounded(0xFF242424.toInt(), 12)
+            setPadding(dp(12), dp(10), dp(12), dp(10))
+        }
+        duck.addView(greeting, LinearLayout.LayoutParams(-1, dp(46)).apply { topMargin = dp(8) })
+        greeting.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                prefs.edit().putString("home_greeting", s?.toString()?.take(22) ?: "DUCKDIALER").apply()
+            }
+            override fun afterTextChanged(s: Editable?) = Unit
+        })
+        content.addView(duck, matchWrap())
+        content.addView(actionText("←  Back to Settings", panel, white, 14f) {
+            showTab("Settings")
+        }, LinearLayout.LayoutParams(-1, dp(48)).apply { topMargin = dp(18) })
+    }
+
+    private fun addHomeSwitch(parent: LinearLayout, key: String, label: String, default: Boolean) {
+        parent.addView(Switch(this).apply {
+            text = label
+            textSize = 13f
+            setTextColor(white)
+            isChecked = prefs.getBoolean(key, default)
+            buttonTintList = ColorStateList.valueOf(orange)
+            setOnCheckedChangeListener { _, checked -> prefs.edit().putBoolean(key, checked).apply() }
+        }, LinearLayout.LayoutParams(-1, dp(48)))
+    }
+
+    private fun addChoiceRow(parent: LinearLayout, choices: List<Pair<String, Int>>, key: String, default: Int) {
+        val row = LinearLayout(this).apply { gravity = Gravity.CENTER }
+        choices.forEach { (label, value) ->
+            val selected = prefs.getInt(key, default) == value
+            row.addView(actionText(if (selected) "✓ $label" else label,
+                if (selected) orange else 0xFF292929.toInt(),
+                if (selected) 0xFF17100A.toInt() else white, 11f) {
+                prefs.edit().putInt(key, value).apply()
+                showTab("Home Customization")
+            }, LinearLayout.LayoutParams(0, dp(42), 1f).apply {
+                setMargins(dp(3), dp(7), dp(3), dp(7))
+            })
+        }
+        parent.addView(row, matchWrap())
+    }
+
     private fun buildSettings() {
         sectionTitle("Settings")
+        content.addView(actionText("✦  Customize Home Screen", orange, 0xFF17100A.toInt(), 15f) {
+            showTab("Home Customization")
+        }, LinearLayout.LayoutParams(-1, dp(52)).apply { bottomMargin = dp(16) })
         val callerCard = settingsCard()
         val hide = Switch(this).apply {
             text = "Hide caller ID (*67)"
