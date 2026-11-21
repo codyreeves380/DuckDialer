@@ -53,8 +53,14 @@ class InCallActivity : Activity() {
     private val handler = Handler(Looper.getMainLooper())
     private val timerTick = object : Runnable {
         override fun run() {
+            if (isFinishing || isDestroyed) return
+            val call = DuckDialerInCallService.activeCall
+            if (call == null || call.state == Call.STATE_DISCONNECTED) {
+                finish()
+                return
+            }
             updateDuration()
-            handler.postDelayed(this, 1000)
+            if (!isFinishing && !isDestroyed) handler.postDelayed(this, 1000)
         }
     }
 
@@ -204,7 +210,6 @@ class InCallActivity : Activity() {
         }
         val decline = action("Decline", 0xFFB83232.toInt(), white, 58) {
             DuckDialerInCallService.activeCall?.reject(false, null)
-            finish()
         }
         val answer = action("Answer", 0xFF238B55.toInt(), white, 58) {
             DuckDialerInCallService.activeCall?.answer(VideoProfile.STATE_AUDIO_ONLY)
@@ -310,7 +315,6 @@ class InCallActivity : Activity() {
 
         val hangup = action("End call", 0xFFB83232.toInt(), white, 58) {
             DuckDialerInCallService.activeCall?.disconnect()
-            finish()
         }
         root.addView(hangup, LinearLayout.LayoutParams(-1, dp(58)).apply {
             topMargin = dp(22)
@@ -467,11 +471,19 @@ class InCallActivity : Activity() {
         @Volatile private var visibleActivity: WeakReference<InCallActivity>? = null
 
         fun refreshIfVisible() {
-            visibleActivity?.get()?.runOnUiThread { visibleActivity?.get()?.refresh() }
+            val activity = visibleActivity?.get() ?: return
+            if (activity.isFinishing || activity.isDestroyed) return
+            activity.runOnUiThread {
+                if (!activity.isFinishing && !activity.isDestroyed) activity.refresh()
+            }
         }
 
         fun finishIfVisible() {
-            visibleActivity?.get()?.runOnUiThread { visibleActivity?.get()?.finish() }
+            val activity = visibleActivity?.get() ?: return
+            if (activity.isFinishing || activity.isDestroyed) return
+            activity.runOnUiThread {
+                if (!activity.isFinishing && !activity.isDestroyed) activity.finish()
+            }
         }
     }
 }
