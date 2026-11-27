@@ -41,6 +41,7 @@ class InCallActivity : Activity() {
     private lateinit var muteButton: TextView
     private lateinit var speakerButton: TextView
     private lateinit var holdButton: TextView
+    private lateinit var hangupButton: TextView
     private lateinit var keypadButton: TextView
     private var muted = false
     private var speakerOn = false
@@ -330,10 +331,26 @@ class InCallActivity : Activity() {
             topMargin = dp(12)
         })
 
-        val hangup = action("End call", 0xFFB83232.toInt(), white, 58) {
-            DuckDialerInCallService.activeCall?.disconnect()
+        hangupButton = action("End call", 0xFFB83232.toInt(), white, 58) {
+            val call = DuckDialerInCallService.activeCall
+            if (call == null || call.state == Call.STATE_DISCONNECTING ||
+                call.state == Call.STATE_DISCONNECTED) {
+                hangupButton.isEnabled = false
+                hangupButton.text = "Ending call…"
+                return@action
+            }
+            hangupButton.isEnabled = false
+            hangupButton.text = "Ending call…"
+            hangupButton.alpha = 0.72f
+            try {
+                call.disconnect()
+            } catch (_: Exception) {
+                hangupButton.isEnabled = true
+                hangupButton.text = "End call"
+                hangupButton.alpha = 1f
+            }
         }
-        root.addView(hangup, LinearLayout.LayoutParams(-1, dp(58)).apply {
+        root.addView(hangupButton, LinearLayout.LayoutParams(-1, dp(58)).apply {
             topMargin = dp(22)
         })
 
@@ -389,6 +406,7 @@ class InCallActivity : Activity() {
             Call.STATE_CONNECTING -> "CONNECTING"
             Call.STATE_ACTIVE -> "CONNECTED"
             Call.STATE_HOLDING -> "ON HOLD"
+            Call.STATE_DISCONNECTING -> "ENDING CALL"
             Call.STATE_DISCONNECTED -> "CALL ENDED"
             else -> "CALL"
         }
@@ -396,6 +414,12 @@ class InCallActivity : Activity() {
         val dialing = state == Call.STATE_DIALING || state == Call.STATE_CONNECTING
         val inCall = state == Call.STATE_ACTIVE || state == Call.STATE_HOLDING
         val controlsAvailable = dialing || inCall
+        if (::hangupButton.isInitialized) {
+            val ending = state == Call.STATE_DISCONNECTING || state == Call.STATE_DISCONNECTED || call == null
+            hangupButton.isEnabled = !ending
+            hangupButton.text = if (ending) "Ending call…" else "End call"
+            hangupButton.alpha = if (ending) 0.72f else 1f
+        }
         answerRow.visibility = if (ringing) View.VISIBLE else View.GONE
         controlsPanel.visibility = if (controlsAvailable) View.VISIBLE else View.GONE
         keypadPanel.visibility = if (inCall && keypadVisible) View.VISIBLE else View.GONE
