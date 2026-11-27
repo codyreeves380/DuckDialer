@@ -47,6 +47,8 @@ class MainActivity : Activity() {
     private var selectedTab = "Home"
     private var selectedSettingsSection = "General"
     private var recentFilter = "All"
+    private var recentSearchTerm = ""
+    private var favoritesSearchTerm = ""
     private val white = 0xFFF5F5F5.toInt()
     private val muted = 0xFF9B9B9B.toInt()
     private val panel = 0xFF171717.toInt()
@@ -362,6 +364,20 @@ class MainActivity : Activity() {
 
     private fun buildRecents() {
         sectionTitle("Recent calls")
+        val search = EditText(this).apply {
+            hint = "Search contacts"
+            setHintTextColor(muted)
+            setTextColor(white)
+            textSize = 14f
+            isSingleLine = true
+            inputType = android.text.InputType.TYPE_CLASS_TEXT
+            imeOptions = EditorInfo.IME_ACTION_SEARCH
+            background = rounded(panel, 14)
+            setPadding(dp(15), dp(11), dp(15), dp(11))
+            setText(recentSearchTerm)
+            tag = "recent_search"
+        }
+        content.addView(search, LinearLayout.LayoutParams(-1, dp(48)).apply { bottomMargin = dp(10) })
         val filters = LinearLayout(this).apply { gravity = Gravity.CENTER; setPadding(0, 0, 0, dp(12)) }
         listOf("All", "Missed").forEach { filter ->
             filters.addView(actionText(filter, if (recentFilter == filter) orange else panel,
@@ -386,6 +402,8 @@ class MainActivity : Activity() {
                 while (cursor.moveToNext() && shown < 50) {
                     val name = cursor.getString(0).orEmpty()
                     val number = cursor.getString(1).orEmpty()
+                    val term = recentSearchTerm.trim()
+                    if (term.isNotEmpty() && !name.contains(term, true) && !number.contains(term, true)) continue
                     val type = cursor.getInt(2)
                     val date = cursor.getLong(3)
                     val duration = cursor.getLong(4)
@@ -406,6 +424,18 @@ class MainActivity : Activity() {
         } catch (_: SecurityException) {
             emptyMessage("Call history is not available.")
         }
+        search.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                recentSearchTerm = s?.toString().orEmpty()
+                val cursor = search.selectionStart
+                showTab(if (selectedTab == "Home") "Home" else "Recents")
+                content.findViewWithTag<EditText>("recent_search")?.let {
+                    it.setSelection(cursor.coerceIn(0, it.text.length))
+                }
+            }
+            override fun afterTextChanged(s: Editable?) = Unit
+        })
     }
 
     private fun buildContacts() {
@@ -463,8 +493,37 @@ class MainActivity : Activity() {
     }
 
     private fun buildFavorites() {
-        sectionTitle("Favorites")
-        val numbers = favoriteNumbers.sorted()
+        sectionTitle("Favorite contacts")
+        val search = EditText(this).apply {
+            hint = "Search contacts"
+            setHintTextColor(muted)
+            setTextColor(white)
+            textSize = 14f
+            isSingleLine = true
+            inputType = android.text.InputType.TYPE_CLASS_TEXT
+            imeOptions = EditorInfo.IME_ACTION_SEARCH
+            background = rounded(panel, 14)
+            setPadding(dp(15), dp(11), dp(15), dp(11))
+            setText(favoritesSearchTerm)
+            tag = "favorites_search"
+        }
+        content.addView(search, LinearLayout.LayoutParams(-1, dp(48)).apply { bottomMargin = dp(12) })
+        val numbers = favoriteNumbers.sorted().filter { number ->
+            favoritesSearchTerm.isBlank() || number.contains(favoritesSearchTerm, true) ||
+                contactNameForNumber(number).contains(favoritesSearchTerm, true)
+        }
+        search.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                favoritesSearchTerm = s?.toString().orEmpty()
+                val cursor = search.selectionStart
+                showTab("Favorites")
+                content.findViewWithTag<EditText>("favorites_search")?.let {
+                    it.setSelection(cursor.coerceIn(0, it.text.length))
+                }
+            }
+            override fun afterTextChanged(s: Editable?) = Unit
+        })
         if (numbers.isEmpty()) {
             val card = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
@@ -499,6 +558,17 @@ class MainActivity : Activity() {
         }
     }
 
+
+
+    private fun contactNameForNumber(number: String): String {
+        if (number.isBlank() || checkSelfPermission(Manifest.permission.READ_CONTACTS) != PackageManager.PERMISSION_GRANTED) return ""
+        return try {
+            val uri = Uri.withAppendedPath(ContactsContract.PhoneLookup.CONTENT_FILTER_URI, Uri.encode(number))
+            contentResolver.query(uri, arrayOf(ContactsContract.PhoneLookup.DISPLAY_NAME), null, null, null)?.use { cursor ->
+                if (cursor.moveToFirst()) cursor.getString(0).orEmpty() else ""
+            } ?: ""
+        } catch (_: Exception) { "" }
+    }
 
     private fun buildHomeCustomization() {
         sectionTitle("Customize Home")
