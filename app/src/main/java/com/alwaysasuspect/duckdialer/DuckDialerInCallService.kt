@@ -21,7 +21,17 @@ class DuckDialerInCallService : InCallService() {
                 description = "Incoming call alerts for DuckDialer"
                 lockscreenVisibility = Notification.VISIBILITY_PUBLIC
             }
-            getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
+            getSystemService(NotificationManager::class.java).apply {
+                createNotificationChannel(channel)
+                createNotificationChannel(
+                    NotificationChannel(
+                        ONGOING_CALL_CHANNEL_ID, "Ongoing calls", NotificationManager.IMPORTANCE_LOW
+                    ).apply {
+                        description = "Persistent status for active DuckDialer calls"
+                        lockscreenVisibility = Notification.VISIBILITY_PUBLIC
+                    }
+                )
+            }
         }
     }
 
@@ -32,6 +42,7 @@ class DuckDialerInCallService : InCallService() {
         call.registerCallback(callCallback)
         selectBestCall()
         updateIncomingCallNotification()
+        updateOngoingCallNotification()
 
         // The app is the selected default dialer. Keep the call surface synchronized
         // with Telecom's full call list rather than assuming only one call exists.
@@ -50,6 +61,7 @@ class DuckDialerInCallService : InCallService() {
         calls.remove(call)
         selectBestCall()
         updateIncomingCallNotification()
+        updateOngoingCallNotification()
         if (calls.isEmpty()) InCallActivity.finishIfVisible()
         else InCallActivity.refreshIfVisible()
         super.onCallRemoved(call)
@@ -57,6 +69,7 @@ class DuckDialerInCallService : InCallService() {
 
     override fun onCallAudioStateChanged(audioState: android.telecom.CallAudioState) {
         super.onCallAudioStateChanged(audioState)
+        updateOngoingCallNotification()
         InCallActivity.refreshIfVisible()
     }
 
@@ -93,6 +106,59 @@ class DuckDialerInCallService : InCallService() {
         manager.notify(CALL_NOTIFICATION_ID, notification)
     }
 
+    private fun updateOngoingCallNotification() {
+        val call = calls.firstOrNull {
+            it.state == Call.STATE_DIALING ||
+                it.state == Call.STATE_CONNECTING ||
+                it.state == Call.STATE_ACTIVE ||
+                it.state == Call.STATE_HOLDING
+        }
+        val manager = getSystemService(NotificationManager::class.java)
+        if (call == null) {
+            manager.cancel(ONGOING_CALL_NOTIFICATION_ID)
+            return
+        }
+
+        val number = call.details?.handle?.schemeSpecificPart ?: "Unknown number"
+        val (title, status) = when (call.state) {
+            Call.STATE_ACTIVE -> "Ongoing call" to "Connected"
+            Call.STATE_HOLDING -> "Call on hold" to "On hold"
+            Call.STATE_DIALING -> "Outgoing call" to "Calling…"
+            Call.STATE_CONNECTING -> "Outgoing call" to "Connecting…"
+            else -> "Ongoing call" to "In call"
+        }
+        val launchIntent = Intent(this, InCallActivity::class.java).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+        }
+        val pendingIntent = PendingIntent.getActivity(
+            this, ONGOING_CALL_NOTIFICATION_ID, launchIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        val builder = if (Build.VERSION.SDK_INT >= 26) {
+            Notification.Builder(this, ONGOING_CALL_CHANNEL_ID)
+        } else {
+            @Suppress("DEPRECATION")
+            Notification.Builder(this)
+        }
+        builder.setSmallIcon(R.mipmap.ic_launcher)
+            .setContentTitle(title)
+            .setContentText("$number · $status")
+            .setCategory(Notification.CATEGORY_CALL)
+            .setVisibility(Notification.VISIBILITY_PUBLIC)
+            .setOngoing(true)
+            .setOnlyAlertOnce(true)
+            .setShowWhen(call.state == Call.STATE_ACTIVE)
+            .setContentIntent(pendingIntent)
+
+        val connectedAt = call.details?.connectTimeMillis ?: 0L
+        if (call.state == Call.STATE_ACTIVE && connectedAt > 0L) {
+            builder.setWhen(connectedAt).setUsesChronometer(true)
+        } else {
+            builder.setUsesChronometer(false)
+        }
+        manager.notify(ONGOING_CALL_NOTIFICATION_ID, builder.build())
+    }
+
     private fun selectBestCall() {
         // Prefer ringing calls, then active, dialing/connecting, and finally held calls.
         activeCall = calls.minByOrNull { call ->
@@ -110,11 +176,13 @@ class DuckDialerInCallService : InCallService() {
         override fun onStateChanged(call: Call, state: Int) {
             selectBestCall()
             updateIncomingCallNotification()
+            updateOngoingCallNotification()
             InCallActivity.refreshIfVisible()
         }
 
         override fun onDetailsChanged(call: Call, details: Call.Details) {
             selectBestCall()
+            updateOngoingCallNotification()
             InCallActivity.refreshIfVisible()
         }
     }
@@ -122,6 +190,8 @@ class DuckDialerInCallService : InCallService() {
     companion object {
         private const val CALL_CHANNEL_ID = "duckdialer_incoming_calls"
         private const val CALL_NOTIFICATION_ID = 7101
+        private const val ONGOING_CALL_CHANNEL_ID = "duckdialer_ongoing_calls"
+        private const val ONGOING_CALL_NOTIFICATION_ID = 7102
         private val calls = CopyOnWriteArrayList<Call>()
         @Volatile var activeCall: Call? = null
         @Volatile var serviceInstance: DuckDialerInCallService? = null
