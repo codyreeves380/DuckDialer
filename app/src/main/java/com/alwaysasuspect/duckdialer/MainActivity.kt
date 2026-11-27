@@ -363,6 +363,7 @@ class MainActivity : Activity() {
     }
 
     private fun buildRecents() {
+        val homeCallLog = selectedTab == "Home"
         sectionTitle("Recent calls")
         val search = EditText(this).apply {
             hint = "Search contacts"
@@ -377,8 +378,13 @@ class MainActivity : Activity() {
             setText(recentSearchTerm)
             tag = "recent_search"
         }
+        search.visibility = if (homeCallLog) View.GONE else View.VISIBLE
         content.addView(search, LinearLayout.LayoutParams(-1, dp(48)).apply { bottomMargin = dp(10) })
-        val filters = LinearLayout(this).apply { gravity = Gravity.CENTER; setPadding(0, 0, 0, dp(12)) }
+        val filters = LinearLayout(this).apply {
+            gravity = Gravity.CENTER
+            setPadding(0, 0, 0, dp(12))
+            visibility = if (homeCallLog) View.GONE else View.VISIBLE
+        }
         listOf("All", "Missed").forEach { filter ->
             filters.addView(actionText(filter, if (recentFilter == filter) orange else panel,
                 if (recentFilter == filter) 0xFF17100A.toInt() else white, 12f) {
