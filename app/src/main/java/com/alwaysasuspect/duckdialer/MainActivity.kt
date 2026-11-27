@@ -44,7 +44,7 @@ class MainActivity : Activity() {
     private lateinit var countView: TextView
     private lateinit var content: LinearLayout
     private val prefs by lazy { getSharedPreferences("duckdialer_settings", MODE_PRIVATE) }
-    private var selectedTab = "Keypad"
+    private var selectedTab = "Home"
     private var selectedSettingsSection = "General"
     private var recentFilter = "All"
     private val white = 0xFFF5F5F5.toInt()
@@ -120,7 +120,8 @@ class MainActivity : Activity() {
                 setTextColor(orange)
             })
             addView(TextView(this@MainActivity).apply {
-                text = "Phone"
+                text = if (selectedTab == "Home") "Home" else selectedTab
+                tag = "duckdialer_page_title"
                 textSize = 28f
                 typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
                 setTextColor(white)
@@ -140,7 +141,7 @@ class MainActivity : Activity() {
             background = counterBackground()
             minHeight = dp(if (prefs.getBoolean("counter_compact", false)) 64 else 104)
         }
-        countView.visibility = if (prefs.getBoolean("home_show_count", true)) View.VISIBLE else View.GONE
+        countView.visibility = if (selectedTab == "Home" && prefs.getBoolean("home_show_count", true)) View.VISIBLE else View.GONE
         header.addView(countView, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8) })
         root.addView(header, matchWrap())
 
@@ -218,7 +219,12 @@ class MainActivity : Activity() {
         if (!::content.isInitialized) return
         content.removeAllViews()
         updateNavigation()
+        if (::countView.isInitialized) {
+            countView.visibility = if (tab == "Home" && prefs.getBoolean("home_show_count", true)) View.VISIBLE else View.GONE
+        }
+        (window.decorView.findViewWithTag("duckdialer_page_title") as? TextView)?.text = if (tab == "Home") "Home" else tab
         when (tab) {
+            "Home" -> buildHome()
             "Keypad" -> buildKeypad()
             "Recents" -> buildRecents()
             "Contacts" -> buildContacts()
@@ -228,7 +234,21 @@ class MainActivity : Activity() {
         }
     }
 
+    private fun buildHome() {
+        // Workbench Home: persistent page heading and daily counter, then recent calls.
+        buildRecents()
+    }
+
     private fun buildKeypad() {
+        val compactCounter = TextView(this).apply {
+            text = countView.text
+            textSize = 12f
+            gravity = Gravity.CENTER
+            setTextColor(white)
+            background = rounded(panel, 14)
+            setPadding(dp(10), dp(7), dp(10), dp(7))
+        }
+        content.addView(compactCounter, LinearLayout.LayoutParams(-1, dp(38)).apply { bottomMargin = dp(10) })
         sectionTitle("Enter number")
         content.getChildAt(content.childCount - 1)?.tag = "entry"
         numberView = EditText(this).apply {
